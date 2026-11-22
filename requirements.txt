@@ -1,5 +1,9 @@
 fastapi==0.115.6
 pydantic==2.10.4
 uvicorn==0.34.0
-transformers==4.47.1
+transformers==4.57.3
 pytest==8.3.4
+# Docker build will use the CPU-only torch wheel from the PyTorch CPU index.
+torch==2.11.0
+gliner==0.2.30
+protobuf==7.36.2

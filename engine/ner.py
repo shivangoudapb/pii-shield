@@ -1,12 +1,29 @@
-"""Stub named-entity detector interface for the engine."""
+"""GLiNER-backed NER adapter with lazy CPU loading and safe chunk offsets."""
 
-from typing import Protocol
+from __future__ import annotations
 
-from engine.spans import Span
+import re
+from collections.abc import Mapping, Sequence
+from threading import Lock
+from typing import Any, Protocol
+
+from engine.spans import Span, SpanLabel
+
+DEFAULT_MODEL_NAME = "urchade/gliner_multi_pii-v1"
+DEFAULT_LABELS = ("person", "address", "city")
+DEFAULT_LABEL_MAPPING: dict[str, SpanLabel] = {
+    "person": "PERSON",
+    "address": "LOCATION",
+    "city": "LOCATION",
+}
+_HONORIFIC = re.compile(r"(?i:(?:Dr|Mr|Mrs|Ms|Shri|Smt|Sri|Prof))\.?(?:[ \t]+|$)")
+_TRAILING_JI = re.compile(r"[ \t]+ji$", re.IGNORECASE)
+_MODEL_CACHE: dict[str, Any] = {}
+_MODEL_CACHE_LOCK = Lock()
 
 
 class NerDetector(Protocol):
-    """Interface implemented by any model-backed or test NER detector."""
+    """Interface implemented by model-backed and test NER detectors."""
 
     def detect(self, text: str) -> list[Span]:
         """Return NER spans for text without logging or persisting it."""
@@ -23,3 +40,152 @@ class FakeNer:
 
     def detect(self, text: str) -> list[Span]:
         return list(self._spans_by_text.get(text, ()))
+
+
+def _load_model(model_name: str) -> Any:
+    """Load GLiNER on CPU; importing the dependency is deferred until needed."""
+    from gliner import GLiNER
+
+    model = GLiNER.from_pretrained(model_name, map_location="cpu")
+    if hasattr(model, "to"):
+        model.to("cpu")
+    if hasattr(model, "eval"):
+        model.eval()
+    return model
+
+
+def _cached_model(model_name: str) -> Any:
+    with _MODEL_CACHE_LOCK:
+        if model_name not in _MODEL_CACHE:
+            _MODEL_CACHE[model_name] = _load_model(model_name)
+        return _MODEL_CACHE[model_name]
+
+
+def _deduplicate(spans: list[Span]) -> list[Span]:
+    """Collapse same-entity predictions that overlap across chunk windows."""
+    selected: list[Span] = []
+    for candidate in sorted(spans, key=lambda span: (-span.score, span.start, span.end)):
+        normalized = " ".join(candidate.text.casefold().split())
+        duplicate_index = next(
+            (
+                index
+                for index, existing in enumerate(selected)
+                if existing.label == candidate.label
+                and " ".join(existing.text.casefold().split()) == normalized
+                and candidate.start < existing.end
+                and existing.start < candidate.end
+            ),
+            None,
+        )
+        if duplicate_index is None:
+            selected.append(candidate)
+    return sorted(selected, key=lambda span: (span.start, span.end, span.label))
+
+
+class GlinerNer:
+    """NerDetector using ``urchade/gliner_multi_pii-v1`` on CPU by default."""
+
+    def __init__(
+        self,
+        model_name: str = DEFAULT_MODEL_NAME,
+        labels: Sequence[str] | None = None,
+        label_mapping: Mapping[str, SpanLabel] | None = None,
+        threshold: float = 0.3,
+        chunk_size: int = 1800,
+        chunk_overlap: int = 200,
+    ) -> None:
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError("threshold must be between 0 and 1")
+        if chunk_size < 2 or not 0 <= chunk_overlap < chunk_size:
+            raise ValueError("chunk_overlap must be non-negative and smaller than chunk_size")
+
+        self.model_name = model_name
+        self.labels = tuple(DEFAULT_LABELS if labels is None else labels)
+        if not self.labels:
+            raise ValueError("at least one GLiNER label is required")
+        self.label_mapping = dict(DEFAULT_LABEL_MAPPING)
+        if label_mapping:
+            self.label_mapping.update(
+                {label.casefold(): mapped for label, mapped in label_mapping.items()}
+            )
+        self.threshold = threshold
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+
+    def _chunks(self, text: str):
+        """Yield character windows with overlap to stay below model token limits."""
+        step = self.chunk_size - self.chunk_overlap
+        for start in range(0, len(text), step):
+            end = min(start + self.chunk_size, len(text))
+            yield start, end, text[start:end]
+            if end == len(text):
+                break
+
+    def _to_span(self, chunk: str, chunk_start: int, entity: Mapping[str, Any]) -> Span | None:
+        try:
+            start = int(entity["start"])
+            end = int(entity["end"])
+            entity_text = entity["text"]
+            model_label = str(entity["label"]).casefold()
+            score = float(entity["score"])
+        except (KeyError, TypeError, ValueError):
+            return None
+
+        if not isinstance(entity_text, str) or not (0 <= start < end <= len(chunk)):
+            return None
+        if chunk[start:end] != entity_text or score < self.threshold:
+            return None
+
+        label = self.label_mapping.get(model_label)
+        if label is None:
+            return None
+
+        left, right = start, end
+        while left < right and chunk[left].isspace():
+            left += 1
+        while right > left and chunk[right - 1].isspace():
+            right -= 1
+
+        if label == "PERSON":
+            honorific = _HONORIFIC.match(chunk[left:right])
+            if honorific:
+                left += honorific.end()
+                while left < right and chunk[left].isspace():
+                    left += 1
+            trailing_ji = _TRAILING_JI.search(chunk[left:right])
+            if trailing_ji:
+                right = left + trailing_ji.start()
+                while right > left and chunk[right - 1].isspace():
+                    right -= 1
+
+        if right - left <= 1:
+            return None
+        clean_text = chunk[left:right]
+        full_start = chunk_start + left
+        full_end = chunk_start + right
+        return Span(
+            start=full_start,
+            end=full_end,
+            label=label,
+            text=clean_text,
+            source="ner",
+            score=score,
+        )
+
+    def detect(self, text: str) -> list[Span]:
+        if not isinstance(text, str) or not text:
+            return []
+
+        model = _cached_model(self.model_name)
+        spans: list[Span] = []
+        for chunk_start, _chunk_end, chunk in self._chunks(text):
+            entities = model.predict_entities(
+                chunk,
+                list(self.labels),
+                threshold=self.threshold,
+            )
+            for entity in entities:
+                span = self._to_span(chunk, chunk_start, entity)
+                if span is not None and text[span.start:span.end] == span.text:
+                    spans.append(span)
+        return _deduplicate(spans)
