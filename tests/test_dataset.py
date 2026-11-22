@@ -22,6 +22,7 @@ def test_dev_dataset_has_expected_size_unique_ids_and_valid_offsets():
                 "PERSON", "LOCATION", "PHONE", "EMAIL", "AADHAAR", "PAN", "UPI", "PINCODE"
             }
             assert 0 <= span["start"] < span["end"] <= len(item["text"])
+            assert item["text"][span["start"] : span["end"]] == span["text"]
 
 
 def test_dev_has_all_structured_labels_and_synthetic_no_pii_items():
@@ -45,7 +46,7 @@ def test_regex_layer_finds_all_structured_dev_annotations():
 
 
 def test_dev_negative_cases_do_not_flag_structured_lookalikes():
-    negatives = [item for item in load_dev() if item["context"] == "negative"]
+    negatives = [item for item in load_dev() if any(tag.startswith("lookalike_") for tag in item["tags"])]
     assert negatives
     for item in negatives:
         assert not detect_structured_pii(item["text"]), item["id"]
