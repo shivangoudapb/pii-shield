@@ -1,0 +1,19 @@
+{
+  "label_mapping": {
+    "address": "LOCATION",
+    "city": "LOCATION",
+    "locality": "LOCATION",
+    "person": "PERSON",
+    "street address": "LOCATION"
+  },
+  "label_set": "base",
+  "labels": [
+    "person",
+    "address",
+    "city"
+  ],
+  "model_name": "urchade/gliner_multi_pii-v1",
+  "ner_score_threshold": 0.2,
+  "selection_metric": "exact PERSON recall, tie-break by precision then hybrid micro F1",
+  "threshold": 0.2
+}

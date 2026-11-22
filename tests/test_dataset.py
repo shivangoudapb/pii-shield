@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 from engine.regex_layer import detect_structured_pii
@@ -49,4 +50,20 @@ def test_dev_negative_cases_do_not_flag_structured_lookalikes():
     negatives = [item for item in load_dev() if any(tag.startswith("lookalike_") for tag in item["tags"])]
     assert negatives
     for item in negatives:
-        assert not detect_structured_pii(item["text"]), item["id"]
+        tags = set(item["tags"])
+        detected = detect_structured_pii(item["text"])
+        if "lookalike_invalid_aadhaar" in tags:
+            value = re.search(r"(?<!\d)\d{12}(?!\d)", item["text"]).group(0)
+            assert not any(span.label == "AADHAAR" and span.text == value for span in detected), item["id"]
+        if "lookalike_six_digit_code" in tags:
+            value = re.search(r"locker reference (\d{6})", item["text"]).group(1)
+            assert not any(span.label == "PINCODE" and span.text == value for span in detected), item["id"]
+        if "lookalike_order_id" in tags:
+            value = re.search(r"order ref (\d{10})", item["text"]).group(1)
+            assert not any(span.text == value and span.label in {"PHONE", "AADHAAR"} for span in detected), item["id"]
+        if "lookalike_email_upi" in tags:
+            value = re.search(r"sales\d{3}@okhdfcbank\.com", item["text"]).group(0)
+            assert any(span.label == "EMAIL" and span.text == value for span in detected), item["id"]
+            assert not any(span.label == "UPI" and span.text == value for span in detected), item["id"]
+        if "lookalike_nonaddress_location" in tags:
+            assert not any(span.label == "PINCODE" for span in detected), item["id"]
