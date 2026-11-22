@@ -39,3 +39,19 @@ docker run --rm -p 7860:7860 pii-shield
 ```
 
 The image downloads model files at build time, then runs with Hugging Face offline mode enabled. `PORT` defaults to `7860` and can be changed by the hosting platform.
+
+## Deploy on Modal
+
+Create and activate the separate Modal environment, install the Modal CLI, authenticate, and deploy:
+
+```powershell
+python -m venv .venv-modal
+.\.venv-modal\Scripts\Activate.ps1
+python -m pip install modal
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+python -m modal setup
+python -m modal deploy modal_app.py
+```
+
+The Modal image installs the pinned project dependencies with CPU-only PyTorch and caches GLiNER plus its tokenizer during the image build. Containers run with Hugging Face offline mode enabled. With scale-to-zero enabled, the first request after an idle period is slower while a container starts and loads the model.
