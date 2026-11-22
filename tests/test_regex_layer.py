@@ -61,9 +61,12 @@ def test_upi_and_email_are_distinguished():
 
 
 def test_identifiers_before_sentence_punctuation_keep_exact_span():
-    text = "Pay name@okhdfcbank."
+    text = "Pay name@okhdfcbank and email sample@example.com."
     spans = detect_structured_pii(text)
-    assert [(span.label, span.text) for span in spans] == [("UPI", "name@okhdfcbank")]
+    assert [(span.label, span.text) for span in spans] == [
+        ("UPI", "name@okhdfcbank"),
+        ("EMAIL", "sample@example.com"),
+    ]
 
 
 @pytest.mark.parametrize("text", [

@@ -27,7 +27,7 @@ _EMAIL_CANDIDATE = re.compile(
     r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
     r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
     r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+"
-    r"(?![A-Za-z0-9.-])"
+    r"(?![A-Za-z0-9-])"
 )
 _UPI_CANDIDATE = re.compile(r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9][A-Za-z0-9._-]{0,254}@[A-Za-z0-9-]+")
 _PINCODE_CANDIDATE = re.compile(r"(?<![0-9])[1-9][0-9]{5}(?![0-9])")
