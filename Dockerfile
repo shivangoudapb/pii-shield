@@ -1,1 +1,26 @@
-# Container configuration will be added in the deployment phase.
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HF_HOME=/home/piishield/.cache/huggingface
+
+WORKDIR /app
+
+# Install the CPU-only wheel explicitly; the requirements pin the same version.
+RUN python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.11.0
+COPY requirements.txt ./requirements.txt
+RUN python -m pip install --no-cache-dir -r requirements.txt
+
+RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin piishield
+COPY . .
+
+# Cache both GLiNER and its base tokenizer during image construction.
+RUN python -m deploy.download_model \
+    && chown -R piishield:piishield /home/piishield/.cache/huggingface /app
+
+ENV HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
+
+USER piishield
+EXPOSE 7860
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-7860} --no-access-log"]

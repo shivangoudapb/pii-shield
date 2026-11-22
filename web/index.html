@@ -1,1 +1,80 @@
-<!-- User interface will be added in the UI phase. -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f7fb">
+  <title>PII Shield</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="PII Shield home"><span class="brand-mark">P</span>PII Shield</a>
+      <span class="header-note">Private text handling for AI workflows</span>
+    </header>
+
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">LOCAL-FIRST WORKFLOW</p>
+      <h1 id="page-title">Share the answer.<br><span>Keep your details private.</span></h1>
+      <p class="intro-copy">Replace personal details with clear placeholders before you send a message to an AI. Restore them in the reply when it comes back.</p>
+      <p class="privacy-notice">Text is processed in memory on the server and is not stored or logged. For maximum privacy, run it locally (see README).</p>
+    </section>
+
+    <section class="sample-panel" aria-label="Synthetic sample messages">
+      <div><strong>Try a synthetic sample</strong><span>Examples contain fictional details only.</span></div>
+      <div class="sample-buttons">
+        <button class="button button-quiet" type="button" data-sample="resume">Resume</button>
+        <button class="button button-quiet" type="button" data-sample="whatsapp">WhatsApp</button>
+        <button class="button button-quiet" type="button" data-sample="invoice">Invoice</button>
+      </div>
+    </section>
+
+    <div class="workflow-grid">
+      <section class="card" aria-labelledby="redact-title">
+        <div class="card-heading">
+          <div class="step-number">1</div>
+          <div><p class="eyebrow">BEFORE THE AI</p><h2 id="redact-title">Redact your text</h2></div>
+        </div>
+        <label for="source-text">Text to protect</label>
+        <textarea id="source-text" rows="8" placeholder="Paste a message, resume, or document here…"></textarea>
+        <div class="action-row">
+          <p id="redact-status" class="status" role="status" aria-live="polite">Ready when you are.</p>
+          <button id="redact-button" class="button button-primary" type="button">Redact <span aria-hidden="true">→</span></button>
+        </div>
+        <div id="redacted-results" class="results hidden">
+          <div class="result-heading"><h3>Detected details</h3><span id="span-count" class="count-pill"></span></div>
+          <div id="highlighted-text" class="highlighted-text" aria-label="Text with detected spans highlighted"></div>
+          <label for="redacted-text">Safe text to send</label>
+          <textarea id="redacted-text" rows="5" readonly></textarea>
+          <div class="result-footer"><p>Placeholders stay mapped in this browser tab so you can restore the reply.</p><button id="copy-redacted" class="button button-quiet" type="button">Copy</button></div>
+        </div>
+      </section>
+
+      <section class="card restore-card" aria-labelledby="restore-title">
+        <div class="card-heading">
+          <div class="step-number step-number-muted">2</div>
+          <div><p class="eyebrow">AFTER THE AI</p><h2 id="restore-title">Restore the reply</h2></div>
+        </div>
+        <label for="reply-text">AI reply</label>
+        <textarea id="reply-text" rows="8" placeholder="Paste the AI's reply containing placeholders…"></textarea>
+        <div class="action-row">
+          <p id="restore-status" class="status" role="status" aria-live="polite">Uses the latest mapping from this tab.</p>
+          <button id="restore-button" class="button button-secondary" type="button">Restore <span aria-hidden="true">→</span></button>
+        </div>
+        <div id="restored-results" class="results hidden">
+          <div class="result-heading"><h3>Restored reply</h3></div>
+          <textarea id="restored-text" rows="5" readonly></textarea>
+          <div class="result-footer"><p>Copy the reply with your original details restored.</p><button id="copy-restored" class="button button-quiet" type="button">Copy</button></div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="site-footer">
+      <p>PII Shield processes text on the server running this app. Use a local deployment for maximum privacy.</p>
+      <a href="/health" target="_blank" rel="noreferrer">Service status</a>
+    </footer>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>

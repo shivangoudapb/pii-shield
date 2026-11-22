@@ -1,11 +1,41 @@
 # PII Shield
 
-PII Shield detects India-specific structured identifiers and is being built as a reversible privacy layer for AI chats. The current repository contains the structured validators, regex detector, shared span schema, and synthetic development and locked test datasets. The later rules, NER, merge, redaction, API, UI, evaluation, and deployment phases are not implemented yet.
+PII Shield detects common Indian personal details in text, replaces them with consistent placeholders, and restores them in a reply. Detection combines validated patterns, simple text rules, and GLiNER.
 
-## Dataset notes
+## Privacy model
 
-All examples are generated from templates and synthetic values. Emails use the reserved `example.com` domain. Phone, PAN, Aadhaar, UPI, and pincode-like values are generated; names and fictional address combinations come from small hand-written lists. No real customer data is used. Generated identifiers could coincidentally match values assigned outside this project, so the dataset is not evidence about any real person.
+Requests are processed in memory by the server and are not written to disk or included in application logs. The placeholder mapping is returned to the browser and is kept only in that browser tab until a reply is restored. A hosted deployment receives the text you submit; run PII Shield on your own computer if you want the text to stay on your device.
 
-The deterministic generator covers resume snippets, WhatsApp-style messages, forms, address text, and a college notice. It includes grouped and ungrouped Aadhaar, several phone formats, synthetic emails and known-provider UPI IDs, PAN, pincodes, invalid Aadhaar-like numbers, OTP/order-number negatives, common-word names, initials, repeated names, and no-PII examples. The development split has 60 examples; the locked test split has 100. The small templates and name/place lists create limited linguistic and regional variety, so results from these data will be indicative rather than representative.
+## Run locally
 
-Use `python -m eval.generate_dataset --split dev` to regenerate the development split. The one-time `--split test` command creates the locked test split and refuses to overwrite it. Do not use that split for development or tuning.
+Use Python 3.11. Install dependencies and start the app:
+
+```sh
+python -m pip install -r requirements.txt
+python -m uvicorn api.main:app --host 127.0.0.1 --port 7860 --no-access-log
+```
+
+The first local startup downloads the configured GLiNER model and tokenizer from Hugging Face. The API loads the model during application startup. Open `http://127.0.0.1:7860` in a browser.
+
+## API
+
+- `POST /redact` with `{"text": "..."}` returns redacted text, detected spans, and a call-local mapping.
+- `POST /restore` with `{"text": "...", "mapping": {...}}` restores known placeholders.
+- `GET /health` reports service and model readiness.
+
+Input text is limited to 20,000 characters. The service disables Uvicorn access logs.
+
+## Evaluation
+
+See [eval/results.md](eval/results.md) for the frozen synthetic evaluation and [eval/errors.md](eval/errors.md) for hybrid test-set error analysis. The small synthetic dataset is indicative only and is not a guarantee of performance on real text.
+
+## Docker
+
+Build and run with Docker:
+
+```sh
+docker build -t pii-shield .
+docker run --rm -p 7860:7860 pii-shield
+```
+
+The image downloads model files at build time, then runs with Hugging Face offline mode enabled. `PORT` defaults to `7860` and can be changed by the hosting platform.

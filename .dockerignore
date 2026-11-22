@@ -1,0 +1,15 @@
+.git/
+.pytest_cache/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.log
+.runtime/
+tests/
+eval/
+!eval/
+eval/*
+!eval/config.json
