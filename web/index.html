@@ -11,14 +11,14 @@
   <main class="page-shell">
     <header class="site-header">
       <a class="brand" href="/" aria-label="PII Shield home"><span class="brand-mark">P</span>PII Shield</a>
-      <span class="header-note">Private text handling for AI workflows</span>
+      <span class="header-note">PII redaction for AI workflows</span>
     </header>
 
     <section class="intro" aria-labelledby="page-title">
-      <p class="eyebrow">LOCAL-FIRST WORKFLOW</p>
-      <h1 id="page-title">Share the answer.<br><span>Keep your details private.</span></h1>
+      <p class="eyebrow">BEFORE SHARING WITH AN AI</p>
+      <h1 id="page-title">Review what you share.<br><span>Redact personal details first.</span></h1>
       <p class="intro-copy">Replace personal details with clear placeholders before you send a message to an AI. Restore them in the reply when it comes back.</p>
-      <p class="privacy-notice">Text is processed in memory on the server and is not stored or logged. For maximum privacy, run it locally (see README).</p>
+      <p class="privacy-notice">Pasted text is sent to the Modal demo server in us-east and processed in memory. This app does not store or log it. Review the redacted output before sharing it. Detection is not perfect.</p>
     </section>
 
     <section class="sample-panel" aria-label="Synthetic sample messages">
@@ -45,7 +45,7 @@
         <div id="redacted-results" class="results hidden">
           <div class="result-heading"><h3>Detected details</h3><span id="span-count" class="count-pill"></span></div>
           <div id="highlighted-text" class="highlighted-text" aria-label="Text with detected spans highlighted"></div>
-          <label for="redacted-text">Safe text to send</label>
+          <label for="redacted-text">Redacted text to review and send</label>
           <textarea id="redacted-text" rows="5" readonly></textarea>
           <div class="result-footer"><p>Placeholders stay mapped in this browser tab so you can restore the reply.</p><button id="copy-redacted" class="button button-quiet" type="button">Copy</button></div>
         </div>
@@ -71,7 +71,7 @@
     </div>
 
     <footer class="site-footer">
-      <p>PII Shield processes text on the server running this app. Use a local deployment for maximum privacy.</p>
+      <p>The hosted demo sends text to a Modal server in us-east. Run locally to keep processing on your own machine (see README).</p>
       <a href="/health" target="_blank" rel="noreferrer">Service status</a>
     </footer>
   </main>
