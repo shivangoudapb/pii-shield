@@ -52,7 +52,56 @@ All data is synthetic. Relaxed matching requires overlap / max(span lengths) ≥
 
 ## Latency and memory
 
-- Hybrid latency after warm-up: median 195.72 ms/item; p95 243.88 ms/item.
-- Peak process RAM with model loaded: 2728.2 MiB.
+- Hybrid latency after warm-up: median 556.86 ms/item; p95 728.96 ms/item.
+- Peak process RAM with model loaded: 2729.2 MiB.
+
+Scores are indicative only: the dataset is small and synthetic.
+
+
+---
+
+# Evaluation results: test
+
+All data is synthetic. Relaxed matching requires overlap / max(span lengths) ≥ 50% with the same label.
+
+## Exact-match metrics
+
+| Label | A P | A R | A F1 | B P | B R | B F1 | C P | C R | C F1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| PERSON | 0.750 | 0.078 | 0.141 | 0.860 | 0.741 | 0.796 | 0.860 | 0.741 | 0.796 |
+| LOCATION | 0.000 | 0.000 | 0.000 | 0.258 | 0.444 | 0.327 | 0.400 | 0.444 | 0.421 |
+| PHONE | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| EMAIL | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| AADHAAR | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| PAN | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| UPI | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| PINCODE | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| **Overall** | 0.977 | 0.500 | 0.661 | 0.718 | 0.376 | 0.493 | 0.890 | 0.840 | 0.864 |
+
+## Relaxed-match metrics
+
+| Label | A P | A R | A F1 | B P | B R | B F1 | C P | C R | C F1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| PERSON | 0.750 | 0.078 | 0.141 | 0.930 | 0.802 | 0.861 | 0.930 | 0.802 | 0.861 |
+| LOCATION | 0.000 | 0.000 | 0.000 | 0.484 | 0.833 | 0.612 | 0.550 | 0.611 | 0.579 |
+| PHONE | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| EMAIL | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| AADHAAR | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| PAN | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| UPI | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| PINCODE | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+| **Overall** | 0.977 | 0.500 | 0.661 | 0.824 | 0.432 | 0.567 | 0.932 | 0.880 | 0.905 |
+
+## Split checks
+
+- Items: 100
+- Gold spans per label: `{"AADHAAR": 9, "EMAIL": 34, "LOCATION": 18, "PAN": 17, "PERSON": 116, "PHONE": 29, "PINCODE": 12, "UPI": 15}`
+- No-PII false-alarm rate (C): 0.000
+- Full-pipeline round-trip rate (C): 1.000
+
+## Latency and memory
+
+- Hybrid latency after warm-up: median 212.45 ms/item; p95 253.86 ms/item.
+- Peak process RAM with model loaded: 2729.2 MiB.
 
 Scores are indicative only: the dataset is small and synthetic.
