@@ -163,13 +163,13 @@ The UI is light-only. Add a `prefers-color-scheme: dark` media query and CSS cus
 ### E5. [Done] Confidence display in the UI
 Show the NER confidence scores in the highlighted spans (maybe as a tooltip or opacity). Helps users understand why some things are flagged and others aren't.
 
-### E6. Selective redaction
+### E6. [Done] Selective redaction
 Let the user click on a highlighted span to toggle it on/off before copying the redacted text. "I don't want to redact this name, it's a public figure."
 
-### E7. Session history
+### E7. [Done] Session history
 Store past redaction sessions in `localStorage` or `IndexedDB` (redacted text + mapping only, never raw text). Let the user restore a previous mapping if they close the tab accidentally.
 
-### E8. Telemetry / analytics (privacy-safe)
+### E8. [Done] Telemetry / analytics (privacy-safe)
 Track anonymous usage metrics: how many redactions, how many spans detected, latency, error rates. Use something privacy-friendly and self-hosted like Plausible or just log counts server-side. No request bodies, ever.
 
 ### E9. Add more PII types
@@ -222,8 +222,9 @@ If you build C1, the extension needs its own test suite: content script injectio
 | E3 | Frontend char limit `[Done]` | Low | Low | None |
 | E4 | Dark mode `[Done]` | Low | Low (polish) | None |
 | E5 | Confidence display `[Done]` | Low | Low (UX) | None |
-| E6 | Selective redaction | Medium | High (UX) | None |
-| E7 | Session history | Low-Med | Medium (UX) | None |
+| E6 | Selective redaction `[Done]` | Medium | High (UX) | None |
+| E7 | Session history `[Done]` | Low-Med | Medium (UX) | None |
+| E8 | Privacy-safe telemetry `[Done]` | Low-Med | Low-Med (observability) | None |
 | E9 | More PII types | Medium | Medium | New validators, eval data |
 | E10 | Better error UI `[Done]` | Low | Low | None |
 | E11 | Accessibility audit `[Done]` | Low | Low | None |

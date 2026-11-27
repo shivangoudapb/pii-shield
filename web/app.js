@@ -1,7 +1,14 @@
 "use strict";
 
-// This mapping exists only in this page's memory. It is sent back only to /restore.
+// This mapping exists in this page's memory (and optionally browser localStorage history). It is sent back only to /restore.
 let currentMapping = {};
+let lastSourceText = "";
+let lastSpans = [];
+let disabledSpanIndices = new Set();
+let activeSessionId = null;
+
+const HISTORY_STORAGE_KEY = "pii_shield_sessions_v1";
+const MAX_HISTORY_ITEMS = 10;
 
 const samples = {
   resume: "Resume contact: Dr. Ananya Rao | mobile +91 98450 12345 | mail ananya.rao@example.com\nAddress: 18 Cedar Cross, Sample Nagar, Bengaluru 560001",
@@ -24,6 +31,158 @@ const restoreButton = document.querySelector("#restore-button");
 const restoreStatus = document.querySelector("#restore-status");
 const redactError = document.querySelector("#redact-error");
 const restoreError = document.querySelector("#restore-error");
+const sessionHistoryPanel = document.querySelector("#session-history");
+const historyList = document.querySelector("#history-list");
+const clearHistoryButton = document.querySelector("#clear-history");
+
+function loadSessionsFromStorage() {
+  try {
+    const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        item &&
+        typeof item.id === "string" &&
+        typeof item.redacted === "string" &&
+        item.mapping &&
+        typeof item.mapping === "object"
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveSessionsToStorage(sessions) {
+  try {
+    if (!sessions.length) {
+      window.localStorage.removeItem(HISTORY_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(
+        HISTORY_STORAGE_KEY,
+        JSON.stringify(sessions.slice(0, MAX_HISTORY_ITEMS))
+      );
+    }
+  } catch {
+    // Ignore storage quota or private-mode restrictions.
+  }
+}
+
+function formatSessionTime(isoString) {
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return "Saved session";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) +
+    " · " +
+    date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function renderSessionHistory() {
+  const sessions = loadSessionsFromStorage();
+  historyList.replaceChildren();
+  if (!sessions.length) {
+    sessionHistoryPanel.classList.add("hidden");
+    return;
+  }
+  sessionHistoryPanel.classList.remove("hidden");
+  for (const session of sessions) {
+    const li = document.createElement("li");
+    const isActive = session.id === activeSessionId;
+    li.className = `history-item${isActive ? " history-item-active" : ""}`;
+
+    const meta = document.createElement("div");
+    meta.className = "history-meta";
+
+    const snippet = document.createElement("span");
+    snippet.className = "history-snippet";
+    const compactPreview = session.redacted.replace(/\s+/g, " ").trim();
+    snippet.textContent = compactPreview.slice(0, 72) || "(empty redacted text)";
+
+    const count = Object.keys(session.mapping).length;
+    const sub = document.createElement("span");
+    sub.className = "history-sub";
+    sub.textContent = `${formatSessionTime(session.createdAt)} · ${count} placeholder${count === 1 ? "" : "s"}${isActive ? " · active" : ""}`;
+
+    meta.append(snippet, sub);
+
+    const actions = document.createElement("div");
+    actions.className = "history-actions";
+
+    const useBtn = document.createElement("button");
+    useBtn.type = "button";
+    useBtn.className = "button button-quiet";
+    useBtn.textContent = isActive ? "Active" : "Use";
+    useBtn.disabled = isActive;
+    useBtn.addEventListener("click", () => {
+      currentMapping = { ...session.mapping };
+      activeSessionId = session.id;
+      redactedText.value = session.redacted;
+      restoreStatus.textContent = `Loaded saved mapping (${count} placeholder${count === 1 ? "" : "s"}). Paste the AI reply to restore.`;
+      renderSessionHistory();
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "button button-quiet";
+    removeBtn.setAttribute("aria-label", "Remove saved session");
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => {
+      const remaining = loadSessionsFromStorage().filter((item) => item.id !== session.id);
+      if (activeSessionId === session.id) {
+        activeSessionId = null;
+      }
+      saveSessionsToStorage(remaining);
+      renderSessionHistory();
+    });
+
+    actions.append(useBtn, removeBtn);
+    li.append(meta, actions);
+    historyList.append(li);
+  }
+}
+
+function recordSessionHistory(redacted, mapping) {
+  const keys = Object.keys(mapping || {});
+  if (!keys.length) {
+    activeSessionId = null;
+    renderSessionHistory();
+    return;
+  }
+  const session = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: new Date().toISOString(),
+    redacted,
+    mapping: { ...mapping },
+  };
+  activeSessionId = session.id;
+  const existing = loadSessionsFromStorage();
+  saveSessionsToStorage([session, ...existing].slice(0, MAX_HISTORY_ITEMS));
+  renderSessionHistory();
+}
+
+function syncActiveSessionHistory() {
+  if (!activeSessionId) {
+    if (Object.keys(currentMapping).length) {
+      recordSessionHistory(redactedText.value, currentMapping);
+    }
+    return;
+  }
+  const sessions = loadSessionsFromStorage();
+  const idx = sessions.findIndex((item) => item.id === activeSessionId);
+  if (idx === -1) return;
+  if (!Object.keys(currentMapping).length) {
+    sessions.splice(idx, 1);
+    activeSessionId = null;
+  } else {
+    sessions[idx] = {
+      ...sessions[idx],
+      redacted: redactedText.value,
+      mapping: { ...currentMapping },
+    };
+  }
+  saveSessionsToStorage(sessions);
+  renderSessionHistory();
+}
 
 function showError(banner, message) {
   banner.querySelector(".error-message").textContent = message;
@@ -66,22 +225,98 @@ function setBusy(button, busy, label) {
   button.textContent = busy ? label : button.dataset.originalLabel || label;
 }
 
+function normaliseEntity(value) {
+  return value.toLowerCase().trim().split(/\s+/).join(" ");
+}
+
+function buildRedactionFromSpans(text, spans, disabledSet) {
+  const mapping = {};
+  const placeholders = new Map();
+  const counters = {};
+  const parts = [];
+  let cursor = 0;
+  let activeCount = 0;
+
+  spans.forEach((span, idx) => {
+    if (disabledSet.has(idx)) return;
+    if (span.start < cursor || span.end > text.length) return;
+    const original = text.slice(span.start, span.end);
+    if (original !== span.text) return;
+
+    parts.push(text.slice(cursor, span.start));
+    const key = `${span.label}\u0000${normaliseEntity(original)}`;
+    let placeholder = placeholders.get(key);
+    if (!placeholder) {
+      counters[span.label] = (counters[span.label] || 0) + 1;
+      placeholder = `[${span.label}_${counters[span.label]}]`;
+      placeholders.set(key, placeholder);
+      mapping[placeholder] = original;
+    }
+    parts.push(placeholder);
+    cursor = span.end;
+    activeCount += 1;
+  });
+
+  parts.push(text.slice(cursor));
+  return { redacted: parts.join(""), mapping, activeCount };
+}
+
+function updateSpanCountPill(total, active) {
+  const pill = document.querySelector("#span-count");
+  pill.textContent = active === total ? `${total} found` : `${active} of ${total} redacted`;
+}
+
+function applySelectiveRedaction() {
+  const { redacted, mapping, activeCount } = buildRedactionFromSpans(
+    lastSourceText,
+    lastSpans,
+    disabledSpanIndices
+  );
+  currentMapping = mapping;
+  redactedText.value = redacted;
+  updateSpanCountPill(lastSpans.length, activeCount);
+}
+
+function toggleSpanAt(index, markEl, spanText, metaLabel) {
+  if (disabledSpanIndices.has(index)) {
+    disabledSpanIndices.delete(index);
+  } else {
+    disabledSpanIndices.add(index);
+  }
+  const isRedacted = !disabledSpanIndices.has(index);
+  markEl.classList.toggle("entity-disabled", !isRedacted);
+  markEl.setAttribute("aria-pressed", String(isRedacted));
+  const stateLabel = isRedacted ? "redacted" : "kept unredacted";
+  markEl.setAttribute("aria-label", `${spanText} — ${metaLabel}, ${stateLabel}`);
+  applySelectiveRedaction();
+  if (typeof syncActiveSessionHistory === "function") {
+    syncActiveSessionHistory();
+  }
+}
+
 function renderHighlights(text, spans) {
   highlightedText.replaceChildren();
+  const validSpans = [];
   const sorted = [...spans].sort((a, b) => a.start - b.start || a.end - b.end);
   let cursor = 0;
   for (const span of sorted) {
     if (span.start < cursor || span.end > text.length || text.slice(span.start, span.end) !== span.text) continue;
+    const spanIndex = validSpans.length;
+    validSpans.push(span);
     highlightedText.append(document.createTextNode(text.slice(cursor, span.start)));
+    const spanSlice = text.slice(span.start, span.end);
     const mark = document.createElement("mark");
     mark.className = `entity entity-${String(span.label).toLowerCase()}`;
+    mark.setAttribute("role", "button");
+    mark.tabIndex = 0;
+    mark.setAttribute("aria-pressed", "true");
     const hasScore = typeof span.score === "number" && Number.isFinite(span.score);
     const scorePct = hasScore ? Math.round(span.score * 100) : null;
     const sourceTextLabel = span.source ? `, ${span.source}` : "";
     const metaLabel = scorePct !== null ? `${span.label} (${scorePct}%${sourceTextLabel})` : span.label;
-    mark.title = metaLabel;
-    mark.setAttribute("aria-label", `${text.slice(span.start, span.end)} — ${metaLabel}`);
-    mark.textContent = text.slice(span.start, span.end);
+    mark.title = `${metaLabel} — click to toggle redaction`;
+    mark.setAttribute("aria-label", `${spanSlice} — ${metaLabel}, redacted`);
+    mark.textContent = spanSlice;
     if (scorePct !== null) {
       const badge = document.createElement("span");
       badge.className = "entity-score";
@@ -89,10 +324,18 @@ function renderHighlights(text, spans) {
       badge.textContent = `${scorePct}%`;
       mark.append(" ", badge);
     }
+    mark.addEventListener("click", () => toggleSpanAt(spanIndex, mark, spanSlice, metaLabel));
+    mark.addEventListener("keydown", (event) => {
+      if (event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        toggleSpanAt(spanIndex, mark, spanSlice, metaLabel);
+      }
+    });
     highlightedText.append(mark);
     cursor = span.end;
   }
   highlightedText.append(document.createTextNode(text.slice(cursor)));
+  return validSpans;
 }
 
 async function copyFrom(element, statusElement) {
@@ -126,10 +369,13 @@ async function runRedact() {
       throw new Error(await readErrorMessage(response, "Could not redact this text."));
     }
     const payload = await response.json();
+    lastSourceText = text;
+    disabledSpanIndices = new Set();
+    lastSpans = renderHighlights(text, payload.spans);
     currentMapping = payload.mapping;
     redactedText.value = payload.redacted;
-    renderHighlights(text, payload.spans);
-    document.querySelector("#span-count").textContent = `${payload.spans.length} found`;
+    updateSpanCountPill(lastSpans.length, lastSpans.length);
+    recordSessionHistory(payload.redacted, payload.mapping);
     results.classList.remove("hidden");
     redactStatus.textContent = payload.spans.length ? "Review the highlighted details before copying." : "No supported PII patterns were detected.";
     restoreStatus.textContent = "Mapping ready in this tab. It is sent only when you restore a reply.";
@@ -203,3 +449,11 @@ document.querySelectorAll("[data-sample]").forEach((button) => {
 
 document.querySelector("#copy-redacted").addEventListener("click", () => copyFrom(redactedText, redactStatus));
 document.querySelector("#copy-restored").addEventListener("click", () => copyFrom(document.querySelector("#restored-text"), restoreStatus));
+clearHistoryButton.addEventListener("click", () => {
+  activeSessionId = null;
+  saveSessionsToStorage([]);
+  restoreStatus.textContent = "Cleared saved mappings from this browser.";
+  renderSessionHistory();
+});
+
+renderSessionHistory();

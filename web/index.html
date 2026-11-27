@@ -58,6 +58,7 @@
         </div>
         <div id="redacted-results" class="results hidden">
           <div class="result-heading"><h3>Detected details</h3><span id="span-count" class="count-pill"></span></div>
+          <p class="selection-hint">Click or press Space on a highlighted detail to skip redacting it.</p>
           <div id="highlighted-text" class="highlighted-text" role="region" tabindex="0" aria-label="Text with detected spans highlighted"></div>
           <label for="redacted-text">Redacted text to review and send</label>
           <textarea id="redacted-text" rows="5" readonly></textarea>
@@ -90,6 +91,14 @@
           <div class="result-heading"><h3>Restored reply</h3></div>
           <textarea id="restored-text" rows="5" readonly></textarea>
           <div class="result-footer"><p>Copy the reply with your original details restored.</p><button id="copy-restored" class="button button-quiet" type="button">Copy</button></div>
+        </div>
+        <div id="session-history" class="results session-history hidden" aria-labelledby="history-title">
+          <div class="result-heading">
+            <h3 id="history-title">Saved mappings</h3>
+            <button id="clear-history" class="button button-quiet" type="button">Clear all</button>
+          </div>
+          <p class="selection-hint">Stored locally in this browser (redacted text + placeholder map only, never raw input).</p>
+          <ul id="history-list" class="history-list"></ul>
         </div>
       </section>
     </div>

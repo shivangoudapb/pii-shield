@@ -1,6 +1,7 @@
 """HTTP boundary tests use FakeNer and never download the model."""
 
 import asyncio
+import json
 import threading
 
 import httpx
@@ -61,8 +62,12 @@ def test_app_serves_the_ui_from_the_same_origin():
         stylesheet = client.get("/style.css")
     assert page.status_code == script.status_code == stylesheet.status_code == 200
     assert "PII Shield" in page.text
+    assert 'id="session-history"' in page.text
     assert "currentMapping" in script.text
+    assert "buildRedactionFromSpans" in script.text
+    assert "HISTORY_STORAGE_KEY" in script.text
     assert ".entity-person" in stylesheet.text
+    assert ".entity-disabled" in stylesheet.text
 
 
 def test_redact_runs_detection_off_the_event_loop_thread():
@@ -110,3 +115,50 @@ def test_rate_limit_blocks_excess_requests_and_recovers():
         # Advancing past the window resets the limit
         now += 61.0
         assert client.post("/redact", json={"text": "Name: Ananya Rao"}).status_code == 200
+
+
+def test_metrics_tracks_aggregate_counts_without_leaking_pii():
+    now = 10.0
+    app = create_app(
+        ner_detector=FakeNer({}),
+        rate_limit_requests=3,
+        rate_limit_window_seconds=60.0,
+        clock=lambda: now,
+    )
+    raw_text = "Name: Ananya Rao; call 9845012345"
+    with TestClient(app) as client:
+        initial = client.get("/metrics")
+        assert initial.status_code == 200
+        assert initial.json()["redact_requests"] == 0
+
+        res = client.post("/redact", json={"text": raw_text})
+        assert res.status_code == 200
+        payload = res.json()
+
+        assert client.post(
+            "/restore",
+            json={"text": payload["redacted"], "mapping": payload["mapping"]},
+        ).status_code == 200
+
+        # Oversized request -> 413 error counted
+        assert client.post("/redact", json={"text": "x" * 20_001}).status_code == 413
+        # Rate-limited request -> 429 error counted (3 hits already used on /redact + /restore)
+        assert client.post("/redact", json={"text": "Name: Ananya Rao"}).status_code == 429
+        # Advance past rate-limit window, then trigger validation error -> 422 error counted
+        now += 61.0
+        assert client.post("/redact", json={"wrong": 1}).status_code == 422
+
+        metrics = client.get("/metrics")
+        assert metrics.status_code == 200
+        stats = metrics.json()
+        assert stats["redact_requests"] == 1
+        assert stats["restore_requests"] == 1
+        assert stats["spans_detected_total"] == 2
+        assert stats["spans_by_label"] == {"PERSON": 1, "PHONE": 1}
+        assert stats["errors_by_status"] == {"413": 1, "422": 1, "429": 1}
+        assert stats["redact_latency_ms_avg"] >= 0.0
+        assert stats["redact_latency_ms_max"] >= 0.0
+
+        serialised = json.dumps(stats)
+        assert "Ananya Rao" not in serialised
+        assert "9845012345" not in serialised

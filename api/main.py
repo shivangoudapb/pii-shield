@@ -83,6 +83,55 @@ def _client_key(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+class InMemoryMetrics:
+    """Privacy-safe aggregate counters kept strictly in memory (never raw text or PII)."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._redact_requests = 0
+        self._restore_requests = 0
+        self._spans_total = 0
+        self._spans_by_label: dict[str, int] = defaultdict(int)
+        self._errors_by_status: dict[str, int] = defaultdict(int)
+        self._redact_latency_ms_sum = 0.0
+        self._redact_latency_ms_max = 0.0
+
+    def record_redact(self, spans: list[Any], elapsed_ms: float) -> None:
+        with self._lock:
+            self._redact_requests += 1
+            self._spans_total += len(spans)
+            for span in spans:
+                self._spans_by_label[span.label] += 1
+            self._redact_latency_ms_sum += elapsed_ms
+            if elapsed_ms > self._redact_latency_ms_max:
+                self._redact_latency_ms_max = elapsed_ms
+
+    def record_restore(self) -> None:
+        with self._lock:
+            self._restore_requests += 1
+
+    def record_error(self, status_code: int) -> None:
+        with self._lock:
+            self._errors_by_status[str(status_code)] += 1
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            avg_ms = (
+                round(self._redact_latency_ms_sum / self._redact_requests, 2)
+                if self._redact_requests
+                else 0.0
+            )
+            return {
+                "redact_requests": self._redact_requests,
+                "restore_requests": self._restore_requests,
+                "spans_detected_total": self._spans_total,
+                "spans_by_label": dict(sorted(self._spans_by_label.items())),
+                "errors_by_status": dict(sorted(self._errors_by_status.items())),
+                "redact_latency_ms_avg": avg_ms,
+                "redact_latency_ms_max": round(self._redact_latency_ms_max, 2),
+            }
+
+
 def create_app(
     ner_detector: NerDetector | None = None,
     *,
@@ -97,6 +146,7 @@ def create_app(
         window_seconds=rate_limit_window_seconds,
         clock=clock,
     )
+    metrics = InMemoryMetrics()
 
     def enforce_rate_limit(request: Request) -> None:
         retry_after = limiter.check(_client_key(request))
@@ -133,6 +183,13 @@ def create_app(
 
     app = FastAPI(title="PII Shield", lifespan=lifespan)
 
+    @app.middleware("http")
+    async def track_api_errors(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path in {"/redact", "/restore"} and response.status_code >= 400:
+            metrics.record_error(response.status_code)
+        return response
+
     @app.exception_handler(RequestValidationError)
     async def safe_validation_error(request, exc: RequestValidationError):
         # Pydantic's default 422 response can echo the submitted input value.
@@ -142,10 +199,15 @@ def create_app(
     async def health() -> dict[str, bool | str]:
         return {"status": "ok", "model_loaded": bool(app.state.model_loaded)}
 
+    @app.get("/metrics")
+    async def get_metrics() -> dict[str, Any]:
+        return metrics.snapshot()
+
     @app.post("/redact", dependencies=[Depends(enforce_rate_limit)])
     async def redact(request: RedactRequest) -> dict[str, Any]:
         if len(request.text) > MAX_TEXT_CHARS:
             raise HTTPException(status_code=413, detail="Text exceeds the 20,000 character limit.")
+        started = time.perf_counter()
         spans = await asyncio.to_thread(
             detect,
             request.text,
@@ -153,6 +215,8 @@ def create_app(
             ner_score_threshold=app.state.ner_score_threshold,
         )
         redacted, mapping = _redact_spans(request.text, spans)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        metrics.record_redact(spans, elapsed_ms)
         return {
             "redacted": redacted,
             "spans": [asdict(span) for span in spans],
@@ -163,7 +227,9 @@ def create_app(
     async def restore(request: RestoreRequest) -> dict[str, str]:
         if len(request.text) > MAX_TEXT_CHARS:
             raise HTTPException(status_code=413, detail="Text exceeds the 20,000 character limit.")
-        return {"restored": restore_text(request.text, request.mapping)}
+        restored = restore_text(request.text, request.mapping)
+        metrics.record_restore()
+        return {"restored": restored}
 
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
