@@ -3,16 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f4f7fb">
+  <meta name="theme-color" content="#f4f7fb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
   <title>PII Shield</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <main class="page-shell">
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <div class="page-shell">
     <header class="site-header">
-      <a class="brand" href="/" aria-label="PII Shield home"><span class="brand-mark">P</span>PII Shield</a>
+      <a class="brand" href="/" aria-label="PII Shield home"><span class="brand-mark" aria-hidden="true">P</span>PII Shield</a>
       <span class="header-note">PII redaction for AI workflows</span>
     </header>
+
+    <main id="main-content" tabindex="-1">
 
     <section class="intro" aria-labelledby="page-title">
       <p class="eyebrow">BEFORE SHARING WITH AN AI</p>
@@ -36,15 +40,25 @@
           <div class="step-number">1</div>
           <div><p class="eyebrow">BEFORE THE AI</p><h2 id="redact-title">Redact your text</h2></div>
         </div>
-        <label for="source-text">Text to protect</label>
-        <textarea id="source-text" rows="8" placeholder="Paste a message, resume, or document here…"></textarea>
+        <div class="label-row">
+          <label for="source-text">Text to protect</label>
+          <span id="source-count" class="char-count">0 / 20,000</span>
+        </div>
+        <textarea id="source-text" rows="8" aria-describedby="source-count" placeholder="Paste a message, resume, or document here…"></textarea>
         <div class="action-row">
           <p id="redact-status" class="status" role="status" aria-live="polite">Ready when you are.</p>
           <button id="redact-button" class="button button-primary" type="button">Redact <span aria-hidden="true">→</span></button>
         </div>
+        <div id="redact-error" class="error-banner hidden" role="alert">
+          <p class="error-message"></p>
+          <div class="error-actions">
+            <button type="button" class="button button-quiet error-retry">Retry</button>
+            <button type="button" class="button button-quiet error-dismiss" aria-label="Dismiss error">Dismiss</button>
+          </div>
+        </div>
         <div id="redacted-results" class="results hidden">
           <div class="result-heading"><h3>Detected details</h3><span id="span-count" class="count-pill"></span></div>
-          <div id="highlighted-text" class="highlighted-text" aria-label="Text with detected spans highlighted"></div>
+          <div id="highlighted-text" class="highlighted-text" role="region" tabindex="0" aria-label="Text with detected spans highlighted"></div>
           <label for="redacted-text">Redacted text to review and send</label>
           <textarea id="redacted-text" rows="5" readonly></textarea>
           <div class="result-footer"><p>Placeholders stay mapped in this browser tab so you can restore the reply.</p><button id="copy-redacted" class="button button-quiet" type="button">Copy</button></div>
@@ -56,11 +70,21 @@
           <div class="step-number step-number-muted">2</div>
           <div><p class="eyebrow">AFTER THE AI</p><h2 id="restore-title">Restore the reply</h2></div>
         </div>
-        <label for="reply-text">AI reply</label>
-        <textarea id="reply-text" rows="8" placeholder="Paste the AI's reply containing placeholders…"></textarea>
+        <div class="label-row">
+          <label for="reply-text">AI reply</label>
+          <span id="reply-count" class="char-count">0 / 20,000</span>
+        </div>
+        <textarea id="reply-text" rows="8" aria-describedby="reply-count" placeholder="Paste the AI's reply containing placeholders…"></textarea>
         <div class="action-row">
           <p id="restore-status" class="status" role="status" aria-live="polite">Uses the latest mapping from this tab.</p>
           <button id="restore-button" class="button button-secondary" type="button">Restore <span aria-hidden="true">→</span></button>
+        </div>
+        <div id="restore-error" class="error-banner hidden" role="alert">
+          <p class="error-message"></p>
+          <div class="error-actions">
+            <button type="button" class="button button-quiet error-retry">Retry</button>
+            <button type="button" class="button button-quiet error-dismiss" aria-label="Dismiss error">Dismiss</button>
+          </div>
         </div>
         <div id="restored-results" class="results hidden">
           <div class="result-heading"><h3>Restored reply</h3></div>
@@ -70,11 +94,13 @@
       </section>
     </div>
 
+    </main>
+
     <footer class="site-footer">
       <p>The hosted demo sends text to a Modal server in us-east. Run locally to keep processing on your own machine (see README).</p>
       <a href="/health" target="_blank" rel="noreferrer">Service status</a>
     </footer>
-  </main>
+  </div>
   <script src="/app.js" defer></script>
 </body>
 </html>

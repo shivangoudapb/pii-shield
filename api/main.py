@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import math
+import threading
+import time
+from collections import defaultdict, deque
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict
@@ -38,8 +44,68 @@ def _load_frozen_config() -> dict[str, Any]:
     return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 
 
-def create_app(ner_detector: NerDetector | None = None) -> FastAPI:
+class SlidingWindowRateLimiter:
+    """In-memory per-client sliding-window rate limiter."""
+
+    def __init__(
+        self,
+        max_requests: int,
+        window_seconds: float,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.clock = clock
+        self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = threading.Lock()
+
+    def check(self, key: str) -> int | None:
+        """Record a hit or return whole seconds to wait if rate-limited."""
+        if self.max_requests <= 0:
+            return None
+        now = self.clock()
+        cutoff = now - self.window_seconds
+        with self._lock:
+            timestamps = self._hits[key]
+            while timestamps and timestamps[0] <= cutoff:
+                timestamps.popleft()
+            if len(timestamps) >= self.max_requests:
+                retry_after = max(1, math.ceil(self.window_seconds - (now - timestamps[0])))
+                return retry_after
+            timestamps.append(now)
+        return None
+
+
+def _client_key(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def create_app(
+    ner_detector: NerDetector | None = None,
+    *,
+    rate_limit_requests: int = 30,
+    rate_limit_window_seconds: float = 60.0,
+    clock: Callable[[], float] = time.monotonic,
+) -> FastAPI:
     """Create the app; tests can inject FakeNer and avoid model loading."""
+
+    limiter = SlidingWindowRateLimiter(
+        max_requests=rate_limit_requests,
+        window_seconds=rate_limit_window_seconds,
+        clock=clock,
+    )
+
+    def enforce_rate_limit(request: Request) -> None:
+        retry_after = limiter.check(_client_key(request))
+        if retry_after is not None:
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded. Please wait before trying again.",
+                headers={"Retry-After": str(retry_after)},
+            )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -76,11 +142,12 @@ def create_app(ner_detector: NerDetector | None = None) -> FastAPI:
     async def health() -> dict[str, bool | str]:
         return {"status": "ok", "model_loaded": bool(app.state.model_loaded)}
 
-    @app.post("/redact")
+    @app.post("/redact", dependencies=[Depends(enforce_rate_limit)])
     async def redact(request: RedactRequest) -> dict[str, Any]:
         if len(request.text) > MAX_TEXT_CHARS:
             raise HTTPException(status_code=413, detail="Text exceeds the 20,000 character limit.")
-        spans = detect(
+        spans = await asyncio.to_thread(
+            detect,
             request.text,
             app.state.ner_detector,
             ner_score_threshold=app.state.ner_score_threshold,
@@ -92,7 +159,7 @@ def create_app(ner_detector: NerDetector | None = None) -> FastAPI:
             "mapping": mapping,
         }
 
-    @app.post("/restore")
+    @app.post("/restore", dependencies=[Depends(enforce_rate_limit)])
     async def restore(request: RestoreRequest) -> dict[str, str]:
         if len(request.text) > MAX_TEXT_CHARS:
             raise HTTPException(status_code=413, detail="Text exceeds the 20,000 character limit.")

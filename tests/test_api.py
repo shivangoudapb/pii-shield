@@ -1,5 +1,9 @@
 """HTTP boundary tests use FakeNer and never download the model."""
 
+import asyncio
+import threading
+
+import httpx
 from fastapi.testclient import TestClient
 
 from api.main import create_app
@@ -59,3 +63,50 @@ def test_app_serves_the_ui_from_the_same_origin():
     assert "PII Shield" in page.text
     assert "currentMapping" in script.text
     assert ".entity-person" in stylesheet.text
+
+
+def test_redact_runs_detection_off_the_event_loop_thread():
+    loop_thread_id = None
+    detector_thread_id = None
+
+    class ThreadCheckingNer(FakeNer):
+        def detect(self, text: str):
+            nonlocal detector_thread_id
+            detector_thread_id = threading.get_ident()
+            return super().detect(text)
+
+    app = create_app(ner_detector=ThreadCheckingNer({}))
+
+    async def exercise():
+        nonlocal loop_thread_id
+        loop_thread_id = threading.get_ident()
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+                response = await client.post("/redact", json={"text": "Name: Ananya Rao"})
+                assert response.status_code == 200
+
+    asyncio.run(exercise())
+    assert detector_thread_id is not None
+    assert detector_thread_id != loop_thread_id
+
+
+def test_rate_limit_blocks_excess_requests_and_recovers():
+    now = 100.0
+    app = create_app(
+        ner_detector=FakeNer({}),
+        rate_limit_requests=2,
+        rate_limit_window_seconds=60.0,
+        clock=lambda: now,
+    )
+    with TestClient(app) as client:
+        assert client.post("/redact", json={"text": "Name: Ananya Rao"}).status_code == 200
+        assert client.post("/restore", json={"text": "hi", "mapping": {}}).status_code == 200
+        blocked = client.post("/redact", json={"text": "Name: Ananya Rao"})
+        assert blocked.status_code == 429
+        assert "Retry-After" in blocked.headers
+        # Health and static UI routes remain accessible
+        assert client.get("/health").status_code == 200
+        # Advancing past the window resets the limit
+        now += 61.0
+        assert client.post("/redact", json={"text": "Name: Ananya Rao"}).status_code == 200

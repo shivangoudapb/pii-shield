@@ -9,15 +9,55 @@ const samples = {
   invoice: "Invoice to Kavya Menon; phone 09845012345; PAN ABCDE1234F\nAadhaar ref: 234567890123 (synthetic invalid checksum; should not be flagged)\nShip to 18 Maple Road, Demo Layout, Pune 411001",
 };
 
+const MAX_TEXT_CHARS = 20000;
+
 const sourceText = document.querySelector("#source-text");
+const sourceCount = document.querySelector("#source-count");
 const redactButton = document.querySelector("#redact-button");
 const redactStatus = document.querySelector("#redact-status");
 const results = document.querySelector("#redacted-results");
 const redactedText = document.querySelector("#redacted-text");
 const highlightedText = document.querySelector("#highlighted-text");
 const replyText = document.querySelector("#reply-text");
+const replyCount = document.querySelector("#reply-count");
 const restoreButton = document.querySelector("#restore-button");
 const restoreStatus = document.querySelector("#restore-status");
+const redactError = document.querySelector("#redact-error");
+const restoreError = document.querySelector("#restore-error");
+
+function showError(banner, message) {
+  banner.querySelector(".error-message").textContent = message;
+  banner.classList.remove("hidden");
+}
+
+function clearError(banner) {
+  banner.classList.add("hidden");
+  banner.querySelector(".error-message").textContent = "";
+}
+
+async function readErrorMessage(response, fallback) {
+  const payload = await response.json().catch(() => ({}));
+  if (response.status === 429) {
+    const retryAfter = response.headers.get("Retry-After");
+    return retryAfter
+      ? `Rate limit reached. Please wait ${retryAfter}s and retry.`
+      : payload.detail || "Rate limit reached. Please wait a moment and retry.";
+  }
+  return payload.detail || fallback;
+}
+
+function updateCharCount(textarea, countEl, button, statusEl) {
+  const len = textarea.value.length;
+  const over = len > MAX_TEXT_CHARS;
+  countEl.textContent = `${len.toLocaleString()} / ${MAX_TEXT_CHARS.toLocaleString()}`;
+  countEl.classList.toggle("char-count-over", over);
+  textarea.setAttribute("aria-invalid", String(over));
+  button.disabled = over;
+  if (over) {
+    statusEl.textContent = `Text exceeds the ${MAX_TEXT_CHARS.toLocaleString()} character limit.`;
+  }
+  return over;
+}
 
 function setBusy(button, busy, label) {
   button.disabled = busy;
@@ -35,8 +75,20 @@ function renderHighlights(text, spans) {
     highlightedText.append(document.createTextNode(text.slice(cursor, span.start)));
     const mark = document.createElement("mark");
     mark.className = `entity entity-${String(span.label).toLowerCase()}`;
-    mark.title = span.label;
+    const hasScore = typeof span.score === "number" && Number.isFinite(span.score);
+    const scorePct = hasScore ? Math.round(span.score * 100) : null;
+    const sourceTextLabel = span.source ? `, ${span.source}` : "";
+    const metaLabel = scorePct !== null ? `${span.label} (${scorePct}%${sourceTextLabel})` : span.label;
+    mark.title = metaLabel;
+    mark.setAttribute("aria-label", `${text.slice(span.start, span.end)} — ${metaLabel}`);
     mark.textContent = text.slice(span.start, span.end);
+    if (scorePct !== null) {
+      const badge = document.createElement("span");
+      badge.className = "entity-score";
+      badge.setAttribute("aria-hidden", "true");
+      badge.textContent = `${scorePct}%`;
+      mark.append(" ", badge);
+    }
     highlightedText.append(mark);
     cursor = span.end;
   }
@@ -54,8 +106,10 @@ async function copyFrom(element, statusElement) {
   }
 }
 
-redactButton.addEventListener("click", async () => {
+async function runRedact() {
+  clearError(redactError);
   const text = sourceText.value;
+  if (updateCharCount(sourceText, sourceCount, redactButton, redactStatus)) return;
   if (!text.trim()) {
     redactStatus.textContent = "Paste some text first.";
     return;
@@ -68,8 +122,10 @@ redactButton.addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
+    if (!response.ok) {
+      throw new Error(await readErrorMessage(response, "Could not redact this text."));
+    }
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.detail || "Could not redact this text.");
     currentMapping = payload.mapping;
     redactedText.value = payload.redacted;
     renderHighlights(text, payload.spans);
@@ -78,13 +134,17 @@ redactButton.addEventListener("click", async () => {
     redactStatus.textContent = payload.spans.length ? "Review the highlighted details before copying." : "No supported PII patterns were detected.";
     restoreStatus.textContent = "Mapping ready in this tab. It is sent only when you restore a reply.";
   } catch (error) {
-    redactStatus.textContent = error.message || "Connection failed. Please try again.";
+    const message = error.message || "Connection failed. Please try again.";
+    redactStatus.textContent = "Redaction failed.";
+    showError(redactError, message);
   } finally {
     setBusy(redactButton, false, "Redact →");
   }
-});
+}
 
-restoreButton.addEventListener("click", async () => {
+async function runRestore() {
+  clearError(restoreError);
+  if (updateCharCount(replyText, replyCount, restoreButton, restoreStatus)) return;
   if (!replyText.value.trim()) {
     restoreStatus.textContent = "Paste the AI reply first.";
     return;
@@ -97,21 +157,45 @@ restoreButton.addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: replyText.value, mapping: currentMapping }),
     });
+    if (!response.ok) {
+      throw new Error(await readErrorMessage(response, "Could not restore this reply."));
+    }
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.detail || "Could not restore this reply.");
     document.querySelector("#restored-text").value = payload.restored;
     document.querySelector("#restored-results").classList.remove("hidden");
     restoreStatus.textContent = "Reply restored.";
   } catch (error) {
-    restoreStatus.textContent = error.message || "Connection failed. Please try again.";
+    const message = error.message || "Connection failed. Please try again.";
+    restoreStatus.textContent = "Restore failed.";
+    showError(restoreError, message);
   } finally {
     setBusy(restoreButton, false, "Restore →");
   }
+}
+
+redactButton.addEventListener("click", runRedact);
+restoreButton.addEventListener("click", runRestore);
+redactError.querySelector(".error-retry").addEventListener("click", runRedact);
+redactError.querySelector(".error-dismiss").addEventListener("click", () => clearError(redactError));
+restoreError.querySelector(".error-retry").addEventListener("click", runRestore);
+restoreError.querySelector(".error-dismiss").addEventListener("click", () => clearError(restoreError));
+
+sourceText.addEventListener("input", () => {
+  const wasOver = sourceCount.classList.contains("char-count-over");
+  const over = updateCharCount(sourceText, sourceCount, redactButton, redactStatus);
+  if (wasOver && !over) redactStatus.textContent = "Ready when you are.";
+});
+
+replyText.addEventListener("input", () => {
+  const wasOver = replyCount.classList.contains("char-count-over");
+  const over = updateCharCount(replyText, replyCount, restoreButton, restoreStatus);
+  if (wasOver && !over) restoreStatus.textContent = "Uses the latest mapping from this tab.";
 });
 
 document.querySelectorAll("[data-sample]").forEach((button) => {
   button.addEventListener("click", () => {
     sourceText.value = samples[button.dataset.sample];
+    updateCharCount(sourceText, sourceCount, redactButton, redactStatus);
     sourceText.focus();
     redactStatus.textContent = "Synthetic sample loaded. Select Redact to preview.";
   });
