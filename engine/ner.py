@@ -18,6 +18,12 @@ DEFAULT_LABEL_MAPPING: dict[str, SpanLabel] = {
 }
 _HONORIFIC = re.compile(r"(?i:(?:Dr|Mr|Mrs|Ms|Shri|Smt|Sri|Prof))\.?(?:[ \t]+|$)")
 _TRAILING_JI = re.compile(r"[ \t]+ji$", re.IGNORECASE)
+_PERSON_PREFIX_STOP = re.compile(
+    r"(?i:(?:bhai|candidate|hii|hey|hi|dear|yaar))[ \t]+"
+)
+_NER_WORD_BLOCKLIST = frozenset({
+    "customer", "address", "client", "user", "person", "name",
+})
 _MODEL_CACHE: dict[str, Any] = {}
 _MODEL_CACHE_LOCK = Lock()
 
@@ -157,10 +163,17 @@ class GlinerNer:
                 right = left + trailing_ji.start()
                 while right > left and chunk[right - 1].isspace():
                     right -= 1
+            prefix = _PERSON_PREFIX_STOP.match(chunk[left:right])
+            if prefix:
+                left += prefix.end()
+                while left < right and chunk[left].isspace():
+                    left += 1
 
         if right - left <= 1:
             return None
         clean_text = chunk[left:right]
+        if clean_text.casefold() in _NER_WORD_BLOCKLIST:
+            return None
         full_start = chunk_start + left
         full_end = chunk_start + right
         return Span(

@@ -214,3 +214,35 @@ def test_real_gliner_model_finds_expected_person_names():
     for text, expected_names in cases:
         detected = [span.text.casefold() for span in detector.detect(text) if span.label == "PERSON"]
         assert all(any(name.casefold() in item for item in detected) for name in expected_names)
+
+
+@pytest.mark.parametrize("prefix", ["bhai", "Candidate", "hii", "hey", "hi", "dear", "yaar"])
+def test_person_postprocessing_strips_stopword_prefixes(prefix, monkeypatch):
+    text = f"{prefix} Rohan Verma"
+    model = MockModel(lambda chunk: [entity(chunk, start=0, end=len(chunk))])
+    install_mock_model(monkeypatch, model)
+
+    spans = GlinerNer().detect(text)
+
+    assert len(spans) == 1
+    assert spans[0].text == "Rohan Verma"
+    assert spans[0].start == len(prefix) + 1
+    assert text[spans[0].start:spans[0].end] == "Rohan Verma"
+
+
+@pytest.mark.parametrize(
+    ("word", "label"),
+    [
+        ("Customer", "person"),
+        ("address", "address"),
+        ("Client", "person"),
+        ("User", "person"),
+        ("Person", "person"),
+        ("Name", "person"),
+    ],
+)
+def test_ner_word_blocklist_drops_false_alarm_words(word, label, monkeypatch):
+    model = MockModel(lambda chunk: [entity(chunk, label=label, start=0, end=len(chunk))])
+    install_mock_model(monkeypatch, model)
+
+    assert GlinerNer().detect(word) == []
