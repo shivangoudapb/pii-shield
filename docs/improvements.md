@@ -33,13 +33,13 @@ If you ever want to separate the static frontend from the API (e.g., for a CDN e
 
 ## B. Detection Performance Improvements
 
-### B1. Fix NER boundary errors (biggest win for PERSON)
+### B1. [Done] Fix NER boundary errors (biggest win for PERSON)
 The error analysis shows GLiNER repeatedly includes preceding context words: `"bhai F Gokhale"`, `"Candidate N Patel"`, `"hii nikhita reddy"`. Your NER post-processing already strips honorifics and "ji" — extend it with a stop-word prefix list: `bhai`, `candidate`, `hii`, `hey`, `dear`, `from`, `to`, common Hindi particles. This alone could fix ~8 of the boundary errors.
 
-### B2. Fix "Surname, First" sign-off pattern
+### B2. [Done] Fix "Surname, First" sign-off pattern
 `"Regards,\nKaur, Jasmeet"` gets split into two spans instead of one. The rules layer's `_SIGNOFF` regex expects `FirstName LastName` after "Regards,". Add a "Last, First" variant. Same for the NER post-processing — if two adjacent PERSON spans from NER are separated only by `, `, merge them.
 
-### B3. Fix short/nickname misses
+### B3. [Done] Fix short/nickname misses
 Nicknames like `Faiy`, `Simry`, `Aswaty`, `Fioy` and standalone first names like `Amrit`, `Zain`, `Mukta`, `Senthil` after context phrases like `"follow up with"`, `"circular —"`, `"Ship to"` are missed. Add contextual rules:
 - `follow up with <Name>`
 - `Ship to <Name> at`
@@ -48,7 +48,7 @@ Nicknames like `Faiy`, `Simry`, `Aswaty`, `Fioy` and standalone first names like
 - `update for <Name> —`
 These are high-precision patterns that don't need NER.
 
-### B4. Fix "surname on roster" / initial-name misses
+### B4. [Done] Fix "surname on roster" / initial-name misses
 `"H. F. Nayak"` is detected but `"(surname on roster: Nayak)"` isn't. Add a rule: `surname on roster: <Name>` and similar parenthetical patterns.
 
 ### B5. Improve full-address detection
@@ -63,7 +63,7 @@ Addresses like `"41 Lotus Lane, Test Garden, Hyderabad"` are completely missed, 
 ### B7. Expand UPI provider list
 `constants.py` only has 5 providers. India has 50+ UPI handles: `ybl`, `ibl`, `axl`, `upi`, `apl`, `barodampay`, `cnrb`, `csbpay`, `dlb`, `fbl`, `federal`, `hsbc`, `idbi`, `ikwik`, `indus`, `kbl`, `kotak`, `mahb`, `pnb`, `rbl`, `sbi`, `sib`, `ubi`, `united`, `vijb`, `yesbank`, etc.
 
-### B8. False alarm: `"Customer"` and `"address"` as PERSON/LOCATION
+### B8. [Done] False alarm: `"Customer"` and `"address"` as PERSON/LOCATION
 Item t060 flags `"Customer"` as PERSON, items t052/t070 flag the word `"address"` as LOCATION. Add these to a NER blocklist — common English words that GLiNER misidentifies.
 
 ### B9. Lowercase name handling
@@ -199,14 +199,14 @@ If you build C1, the extension needs its own test suite: content script injectio
 | A2 | GLiNER → Google NER | High | Uncertain (may regress) | Needs GPU or accepts slowdown |
 | A3 | Artifact Registry | Low | Low (follows from A1) | A1 |
 | A4 | Cloud Build CI/CD | Medium | Medium | A1, A3 |
-| B1 | NER boundary stop-words | Low | High (fixes ~8 errors) | None |
-| B2 | Surname-comma sign-off | Low | Medium | None |
-| B3 | Contextual name rules | Low-Med | High (fixes ~10 misses) | None |
-| B4 | Parenthetical surname rule | Low | Low-Med | None |
+| B1 | NER boundary stop-words `[Done]` | Low | High (fixes ~8 errors) | None |
+| B2 | Surname-comma sign-off `[Done]` | Low | Medium | None |
+| B3 | Contextual name rules `[Done]` | Low-Med | High (fixes ~10 misses) | None |
+| B4 | Parenthetical surname rule `[Done]` | Low | Low-Med | None |
 | B5 | Address assembly | Medium | High (biggest LOCATION gap) | None |
 | B6 | Expand address keywords | Low | Low-Med | None |
 | B7 | Expand UPI providers | Low | Low | None |
-| B8 | NER word blocklist | Low | Low-Med (fixes 3 FPs) | None |
+| B8 | NER word blocklist `[Done]` | Low | Low-Med (fixes 3 FPs) | None |
 | B9 | Lowercase name trimming | Low | Low | B1 |
 | B10 | Bigger eval dataset | Medium | High (confidence in scores) | None |
 | B11 | Native-script support | High | Medium | New eval set, possibly new model |
