@@ -69,7 +69,7 @@ Item t060 flags `"Customer"` as PERSON, items t052/t070 flag the word `"address"
 ### B9. [Done] Lowercase name handling
 `"hii nikhita reddy"` — the NER detects it but includes `"hii"`. Even after fixing B1, lowercase names without title cues are inherently hard. Consider: if GLiNER detects a name and the first token is all-lowercase and not a known name, trim it.
 
-### B10. Bigger and more diverse evaluation dataset
+### B10. [Done] Bigger and more diverse evaluation dataset
 60 dev + 100 test items from templates is small. Generate 500+ items with more varied templates, mixed PII types per item, longer text, and edge cases. Consider including: multi-paragraph text, emails with headers, chat-style multi-turn conversations.
 
 ### B11. Native-script (Devanagari, etc.) support
@@ -208,7 +208,7 @@ If you build C1, the extension needs its own test suite: content script injectio
 | B7 | Expand UPI providers `[Done]` | Low | Low | None |
 | B8 | NER word blocklist `[Done]` | Low | Low-Med (fixes 3 FPs) | None |
 | B9 | Lowercase name trimming `[Done]` | Low | Low | B1 |
-| B10 | Bigger eval dataset | Medium | High (confidence in scores) | None |
+| B10 | Bigger eval dataset `[Done]` | Medium | High (confidence in scores) | None |
 | B11 | Native-script support | High | Medium | New eval set, possibly new model |
 | C1 | Chrome extension | High | Very High (core UX) | API must be deployed |
 | C2 | In-browser inference | High | High (true privacy) | ONNX export of GLiNER |

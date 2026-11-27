@@ -3,8 +3,10 @@ import re
 from pathlib import Path
 
 from engine.regex_layer import detect_structured_pii
+from redactor import redact, restore
 
 DEV_PATH = Path(__file__).parents[1] / "eval" / "dev.jsonl"
+REALISTIC_PATH = Path(__file__).parents[1] / "eval" / "realistic.jsonl"
 STRUCTURED = {"PHONE", "EMAIL", "AADHAAR", "PAN", "UPI", "PINCODE"}
 
 
@@ -67,3 +69,33 @@ def test_dev_negative_cases_do_not_flag_structured_lookalikes():
             assert not any(span.label == "UPI" and span.text == value for span in detected), item["id"]
         if "lookalike_nonaddress_location" in tags:
             assert not any(span.label == "PINCODE" for span in detected), item["id"]
+
+
+def test_realistic_dataset_integrity_structured_exactness_and_round_trip():
+    items = [json.loads(line) for line in REALISTIC_PATH.read_text(encoding="utf-8").splitlines()]
+    assert len(items) == 540
+    assert len({item["id"] for item in items}) == 540
+    assert sum(not item["spans"] for item in items) == 54
+
+    all_labels = {span["label"] for item in items for span in item["spans"]}
+    assert all_labels == {"PERSON", "LOCATION", "PHONE", "EMAIL", "AADHAAR", "PAN", "UPI", "PINCODE"}
+
+    for item in items:
+        text = item["text"]
+        for span in item["spans"]:
+            assert 0 <= span["start"] < span["end"] <= len(text), item["id"]
+            assert text[span["start"] : span["end"]] == span["text"], item["id"]
+
+        expected_structured = {
+            (span["start"], span["end"], span["label"])
+            for span in item["spans"]
+            if span["label"] in STRUCTURED
+        }
+        actual_structured = {
+            (span.start, span.end, span.label)
+            for span in detect_structured_pii(text)
+        }
+        assert expected_structured == actual_structured, item["id"]
+
+        redacted, mapping = redact(text)
+        assert restore(redacted, mapping) == text, item["id"]

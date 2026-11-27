@@ -7,3 +7,8 @@
 - Regeneration verification: `eval/validate_dataset.py --split all` checked span bounds, exact text slices, non-overlap, item counts, template variety, and WhatsApp casing coverage. At regeneration time, no detector was run against either split.
 - One-time evaluation: the frozen Phase 3 configuration was committed before the single test evaluation. No code or configuration was changed after test results were observed.
 - SHA-256 (`eval/test.jsonl`): `2A60BFF3746E66AFA37947F0FFFDDC631E468E10BF13D01E47BECD0F6D417F88`
+
+## Realistic benchmark split (`eval/realistic.jsonl`)
+
+- Generated deterministically by `eval/generate_realistic.py` (`seed=9407`) without modifying `eval/dev.jsonl` or the locked `eval/test.jsonl`.
+- Contents: 540 synthetic items (90 per domain across `email_thread`, `whatsapp_chat`, `support_ticket`, `resume_profile`, `financial_kyc`, and `institutional_notice`), 84 multi-sentence/multi-paragraph templates, 2,266 annotated spans across all 8 PII labels, 54 hard no-PII items (10%), and 383 items with inline lookalike negatives (invalid Verhoeff 12-digit references, 6-digit OTP/verification codes, 10-digit order IDs, Indian company lookalikes, and quoted cultural titles).

@@ -9,7 +9,12 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-SPLIT_PATHS = {"dev": ROOT / "dev.jsonl", "test": ROOT / "test.jsonl"}
+SPLIT_PATHS = {
+    "dev": ROOT / "dev.jsonl",
+    "test": ROOT / "test.jsonl",
+    "realistic": ROOT / "realistic.jsonl",
+}
+EXPECTED_COUNTS = {"dev": 60, "test": 100, "realistic": 540}
 
 
 def validate_split(split: str) -> dict:
@@ -44,10 +49,11 @@ def validate_split(split: str) -> dict:
         hard["lowercase_names"] += "lowercase_name" in tags
         hard["all_caps_names"] += "all_caps_name" in tags
         hard["repeated_person"] += "repeated_person" in tags
-    assert len(items) == (60 if split == "dev" else 100), f"Unexpected item count in {split}"
+    assert len(items) == EXPECTED_COUNTS[split], f"Unexpected item count in {split}"
     assert no_pii == len(items) // 10, f"Unexpected no-PII count in {split}"
-    assert all(len(templates[context]) >= 8 for context in contexts), f"Insufficient template variety in {split}"
-    whatsapp = [item for item in items if item["context"] == "whatsapp"]
+    min_templates = 12 if split == "realistic" else 8
+    assert all(len(templates[context]) >= min_templates for context in contexts), f"Insufficient template variety in {split}"
+    whatsapp = [item for item in items if item["context"] in {"whatsapp", "whatsapp_chat"}]
     casing = sum("messy_chat_casing" in item.get("tags", []) for item in whatsapp)
     assert casing * 4 >= len(whatsapp), f"Insufficient WhatsApp casing variety in {split}"
     return {
@@ -63,9 +69,13 @@ def validate_split(split: str) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--split", choices=("dev", "test", "all"), default="all")
+    parser.add_argument("--split", choices=("dev", "test", "realistic", "all"), default="all")
     split = parser.parse_args().split
-    selected = SPLIT_PATHS if split == "all" else {split: SPLIT_PATHS[split]}
+    selected = (
+        {k: p for k, p in SPLIT_PATHS.items() if k in {"dev", "test"} or p.exists()}
+        if split == "all"
+        else {split: SPLIT_PATHS[split]}
+    )
     for name in selected:
         stats = validate_split(name)
         print(f"{name}: annotations valid; aggregate stats={json.dumps(stats, sort_keys=True)}")
