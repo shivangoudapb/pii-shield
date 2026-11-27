@@ -159,3 +159,29 @@ def test_redaction_does_not_log_raw_text(caplog):
 
     assert caplog.text == ""
     assert text not in caplog.text
+
+
+def test_reversed_signoff_rule_detects_surname_comma_firstname():
+    text = "Regards,\nKaur, Jasmeet\nThanks,\nKamath, Chetan"
+    people = [span for span in detect_rule_pii(text) if span.label == "PERSON"]
+    assert [span.text for span in people] == ["Kaur, Jasmeet", "Kamath, Chetan"]
+
+
+def test_contextual_name_rules_detect_from_followup_shipto_nickname_roster_circular_update():
+    text = (
+        "From: Aarohi Menon\n"
+        "Please follow up with Senthil Iyer today.\n"
+        "Ship to Yasmin Pathan at 18 Cedar Cross.\n"
+        "Details (nickname Simry) and (surname on roster: Dhillon).\n"
+        "College circular — Mukta; Hostel update for Madhurima Sen — paid."
+    )
+    people = [span.text for span in detect_rule_pii(text) if span.label == "PERSON"]
+    assert people == [
+        "Aarohi Menon",
+        "Senthil Iyer",
+        "Yasmin Pathan",
+        "Simry",
+        "Dhillon",
+        "Mukta",
+        "Madhurima Sen",
+    ]
