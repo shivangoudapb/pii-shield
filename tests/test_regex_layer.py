@@ -69,14 +69,19 @@ def test_identifiers_before_sentence_punctuation_keep_exact_span():
     ]
 
 
-@pytest.mark.parametrize("text", [
-    "Deliver to Bengaluru 560001",
-    "Near MG Cross, 560001",
-    "Sector 4 560001",
-    "Flat 2, 560001",
+@pytest.mark.parametrize("text,expected_code", [
+    ("Deliver to Bengaluru 560001", "560001"),
+    ("Near MG Cross, 560001", "560001"),
+    ("Sector 4 560001", "560001"),
+    ("Flat 2, 560001", "560001"),
+    ("Ship to Andheri West Mumbai 400058", "400058"),
+    ("41 Lotus Lane Hyderabad 500034", "500034"),
+    ("Green Enclave Colony Pune 411001", "411001"),
+    ("2nd Floor Sunrise Apartment Chennai 600028", "600028"),
+    ("PIN 110001 New Delhi", "110001"),
 ])
-def test_pincode_flagged_in_address_context(text):
-    assert ("PINCODE", "560001") in labels_for(text)
+def test_pincode_flagged_in_address_context(text, expected_code):
+    assert ("PINCODE", expected_code) in labels_for(text)
 
 
 @pytest.mark.parametrize("text", [

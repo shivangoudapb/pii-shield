@@ -19,11 +19,16 @@ DEFAULT_LABEL_MAPPING: dict[str, SpanLabel] = {
 _HONORIFIC = re.compile(r"(?i:(?:Dr|Mr|Mrs|Ms|Shri|Smt|Sri|Prof))\.?(?:[ \t]+|$)")
 _TRAILING_JI = re.compile(r"[ \t]+ji$", re.IGNORECASE)
 _PERSON_PREFIX_STOP = re.compile(
-    r"(?i:(?:bhai|candidate|hii|hey|hi|dear|yaar))[ \t]+"
+    r"(?i:(?:bhai|bhaiya|didi|candidate|applicant|hi+|hey+|hello|dear|yaar|"
+    r"bro|from|to|with|for|by|cc|attn|pls|plz|please|arre|arey|regards|thanks|fwd))[ \t]+"
 )
+_LOWERCASE_PARTICLES = frozenset({"de", "da", "del", "van", "von", "bin", "al", "ul", "ur"})
+_LEADING_LOWER_BEFORE_UPPER = re.compile(r"(?P<lead>[a-z]+)[ \t]+(?=[A-Z][a-z])")
 _NER_WORD_BLOCKLIST = frozenset({
     "customer", "address", "client", "user", "person", "name",
 })
+_OPEN_QUOTES = frozenset({"'", '"', "‘", "“", "`"})
+_CLOSE_QUOTES = frozenset({"'", '"', "’", "”", "`"})
 _MODEL_CACHE: dict[str, Any] = {}
 _MODEL_CACHE_LOCK = Lock()
 
@@ -153,19 +158,25 @@ class GlinerNer:
             right -= 1
 
         if label == "PERSON":
-            honorific = _HONORIFIC.match(chunk[left:right])
-            if honorific:
-                left += honorific.end()
-                while left < right and chunk[left].isspace():
-                    left += 1
             trailing_ji = _TRAILING_JI.search(chunk[left:right])
             if trailing_ji:
                 right = left + trailing_ji.start()
                 while right > left and chunk[right - 1].isspace():
                     right -= 1
-            prefix = _PERSON_PREFIX_STOP.match(chunk[left:right])
-            if prefix:
-                left += prefix.end()
+            while left < right:
+                honorific = _HONORIFIC.match(chunk[left:right])
+                if honorific:
+                    left += honorific.end()
+                else:
+                    prefix = _PERSON_PREFIX_STOP.match(chunk[left:right])
+                    if prefix:
+                        left += prefix.end()
+                    else:
+                        lower_lead = _LEADING_LOWER_BEFORE_UPPER.match(chunk[left:right])
+                        if lower_lead and lower_lead.group("lead") not in _LOWERCASE_PARTICLES:
+                            left += lower_lead.end()
+                        else:
+                            break
                 while left < right and chunk[left].isspace():
                     left += 1
 
@@ -174,6 +185,22 @@ class GlinerNer:
         clean_text = chunk[left:right]
         if clean_text.casefold() in _NER_WORD_BLOCKLIST:
             return None
+        if label == "LOCATION":
+            quoted_outside = (
+                left > 0
+                and right < len(chunk)
+                and chunk[left - 1] in _OPEN_QUOTES
+                and chunk[right] in _CLOSE_QUOTES
+            )
+            quoted_inside = (
+                len(clean_text) >= 2
+                and clean_text[0] in _OPEN_QUOTES
+                and clean_text[-1] in _CLOSE_QUOTES
+            )
+            if (quoted_outside or quoted_inside) and "," not in clean_text and not any(
+                ch.isdigit() for ch in clean_text
+            ):
+                return None
         full_start = chunk_start + left
         full_end = chunk_start + right
         return Span(

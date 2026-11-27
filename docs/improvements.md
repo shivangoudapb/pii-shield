@@ -51,22 +51,22 @@ These are high-precision patterns that don't need NER.
 ### B4. [Done] Fix "surname on roster" / initial-name misses
 `"H. F. Nayak"` is detected but `"(surname on roster: Nayak)"` isn't. Add a rule: `surname on roster: <Name>` and similar parenthetical patterns.
 
-### B5. Improve full-address detection
+### B5. [Done] Improve full-address detection
 Addresses like `"41 Lotus Lane, Test Garden, Hyderabad"` are completely missed, and `"96 Maple Road, Sample Nagar, Hyderabad"` gets truncated. The NER sees these as partial spans. Options:
 - **Address-assembly post-processing**: When NER returns a partial address span, expand it forward/backward to the nearest comma-separated city name or pincode. Use a list of major Indian city names.
 - **Regex address pattern**: Match `\d+ [A-Z][a-z]+ (Street|Road|Lane|Cross|Avenue), .*, (city name)` patterns.
 - **Merge adjacent LOCATION spans**: If two LOCATION spans are separated only by `, `, merge them.
 
-### B6. Expand address-context keywords for pincode detection
+### B6. [Done] Expand address-context keywords for pincode detection
 `_ADDRESS_CONTEXT` only has 6 city/landmark terms. Add more Indian cities (Mumbai, Delhi, Chennai, Kolkata, Pune, Jaipur, etc.) and address vocabulary (street, lane, layout, colony, extension, enclave, block, flat, apartment, floor, building, etc.).
 
-### B7. Expand UPI provider list
+### B7. [Done] Expand UPI provider list
 `constants.py` only has 5 providers. India has 50+ UPI handles: `ybl`, `ibl`, `axl`, `upi`, `apl`, `barodampay`, `cnrb`, `csbpay`, `dlb`, `fbl`, `federal`, `hsbc`, `idbi`, `ikwik`, `indus`, `kbl`, `kotak`, `mahb`, `pnb`, `rbl`, `sbi`, `sib`, `ubi`, `united`, `vijb`, `yesbank`, etc.
 
 ### B8. [Done] False alarm: `"Customer"` and `"address"` as PERSON/LOCATION
 Item t060 flags `"Customer"` as PERSON, items t052/t070 flag the word `"address"` as LOCATION. Add these to a NER blocklist — common English words that GLiNER misidentifies.
 
-### B9. Lowercase name handling
+### B9. [Done] Lowercase name handling
 `"hii nikhita reddy"` — the NER detects it but includes `"hii"`. Even after fixing B1, lowercase names without title cues are inherently hard. Consider: if GLiNER detects a name and the first token is all-lowercase and not a known name, trim it.
 
 ### B10. Bigger and more diverse evaluation dataset
@@ -203,11 +203,11 @@ If you build C1, the extension needs its own test suite: content script injectio
 | B2 | Surname-comma sign-off `[Done]` | Low | Medium | None |
 | B3 | Contextual name rules `[Done]` | Low-Med | High (fixes ~10 misses) | None |
 | B4 | Parenthetical surname rule `[Done]` | Low | Low-Med | None |
-| B5 | Address assembly | Medium | High (biggest LOCATION gap) | None |
-| B6 | Expand address keywords | Low | Low-Med | None |
-| B7 | Expand UPI providers | Low | Low | None |
+| B5 | Address assembly `[Done]` | Medium | High (biggest LOCATION gap) | None |
+| B6 | Expand address keywords `[Done]` | Low | Low-Med | None |
+| B7 | Expand UPI providers `[Done]` | Low | Low | None |
 | B8 | NER word blocklist `[Done]` | Low | Low-Med (fixes 3 FPs) | None |
-| B9 | Lowercase name trimming | Low | Low | B1 |
+| B9 | Lowercase name trimming `[Done]` | Low | Low | B1 |
 | B10 | Bigger eval dataset | Medium | High (confidence in scores) | None |
 | B11 | Native-script support | High | Medium | New eval set, possibly new model |
 | C1 | Chrome extension | High | Very High (core UX) | API must be deployed |

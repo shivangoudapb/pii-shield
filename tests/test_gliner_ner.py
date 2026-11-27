@@ -216,7 +216,10 @@ def test_real_gliner_model_finds_expected_person_names():
         assert all(any(name.casefold() in item for item in detected) for name in expected_names)
 
 
-@pytest.mark.parametrize("prefix", ["bhai", "Candidate", "hii", "hey", "hi", "dear", "yaar"])
+@pytest.mark.parametrize(
+    "prefix",
+    ["bhai", "Candidate", "hii", "hiii", "hey", "hi", "dear", "yaar", "from", "to", "pls", "arre"],
+)
 def test_person_postprocessing_strips_stopword_prefixes(prefix, monkeypatch):
     text = f"{prefix} Rohan Verma"
     model = MockModel(lambda chunk: [entity(chunk, start=0, end=len(chunk))])
@@ -228,6 +231,28 @@ def test_person_postprocessing_strips_stopword_prefixes(prefix, monkeypatch):
     assert spans[0].text == "Rohan Verma"
     assert spans[0].start == len(prefix) + 1
     assert text[spans[0].start:spans[0].end] == "Rohan Verma"
+
+
+@pytest.mark.parametrize(
+    ("raw_span", "expected_name"),
+    [
+        ("hii bhai nikhita reddy", "nikhita reddy"),
+        ("hey Dr. Venkatesh Iyer", "Venkatesh Iyer"),
+        ("urgently Ananya Rao", "Ananya Rao"),
+        ("nikhita reddy", "nikhita reddy"),
+    ],
+)
+def test_person_postprocessing_handles_chained_prefixes_and_lowercase_names(
+    raw_span, expected_name, monkeypatch
+):
+    model = MockModel(lambda chunk: [entity(chunk, start=0, end=len(chunk))])
+    install_mock_model(monkeypatch, model)
+
+    spans = GlinerNer().detect(raw_span)
+
+    assert len(spans) == 1
+    assert spans[0].text == expected_name
+    assert raw_span[spans[0].start:spans[0].end] == expected_name
 
 
 @pytest.mark.parametrize(
@@ -246,3 +271,20 @@ def test_ner_word_blocklist_drops_false_alarm_words(word, label, monkeypatch):
     install_mock_model(monkeypatch, model)
 
     assert GlinerNer().detect(word) == []
+
+
+@pytest.mark.parametrize(
+    "text,quoted_part",
+    [
+        ("playlist title: ‘Lotus Lane’ (not an address)", "Lotus Lane"),
+        ('now playing "Maple Road" live', "Maple Road"),
+        ("book review: 'Cedar Cross' chapter 2", "Cedar Cross"),
+    ],
+)
+def test_ner_drops_quoted_non_address_location_titles(text, quoted_part, monkeypatch):
+    start = text.index(quoted_part)
+    end = start + len(quoted_part)
+    model = MockModel(lambda chunk: [entity(chunk, label="address", start=start, end=end)])
+    install_mock_model(monkeypatch, model)
+
+    assert GlinerNer().detect(text) == []

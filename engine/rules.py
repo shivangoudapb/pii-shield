@@ -1,7 +1,8 @@
-"""Rule-based name detection for common title, field, and sign-off patterns."""
+"""Rule-based detection for structured name cues and Indian street addresses."""
 
 import re
 
+from engine.constants import INDIAN_CITIES
 from engine.spans import Span
 
 _TITLE = re.compile(
@@ -37,20 +38,53 @@ _UPDATE_FOR = re.compile(
     r"(?i:\bupdate\s+for)\s+(?P<name>[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*?)(?=[ \t]*[—–-])"
 )
 
+_CITY_ALTERNATION = "|".join(
+    re.escape(city).replace(r"\ ", r"[ \t]+")
+    for city in sorted(INDIAN_CITIES, key=len, reverse=True)
+)
+_ROAD_OR_UNIT = (
+    r"(?:Street|St\.?|Road|Rd\.?|Lane|Ln\.?|Cross|Main|Avenue|Ave\.?|Marg|Path|"
+    r"Circle|Chowk|Layout|Nagar|Sector|Colony|Enclave|Extension|Extn\.?|Block|"
+    r"Phase|Stage|Pocket|Vihar|Puram|Garden|Gardens|Park|Residency|Heights|"
+    r"Apartment|Apartments|Tower|Towers)"
+)
+_ADDRESS_START = (
+    r"(?:"
+    r"(?:Flat|Plot|House|Door|Shop|Villa|No\.?)[ \t]*(?:#[ \t]*)?[A-Za-z0-9/-]+"
+    r"(?:,[ \t]+|[ \t]+)(?:\d+[A-Za-z/-]*[ \t]+)?(?:[A-Z0-9][A-Za-z0-9.'/-]*[ \t]+){0,4}?"
+    + _ROAD_OR_UNIT
+    + r"(?:[ \t]+[A-Za-z0-9-]+)?"
+    r"|"
+    r"\d+[A-Za-z]?(?:[/-]\d+[A-Za-z]?)?(?:st|nd|rd|th)?[ \t]+"
+    r"(?:[A-Z0-9][A-Za-z0-9.'/-]*[ \t]+){0,4}?"
+    + _ROAD_OR_UNIT
+    + r"(?:[ \t]+\d+[A-Za-z]?)?"
+    r"|"
+    r"(?:Sector|Phase|Stage|Block)[ \t]+\d+[A-Za-z]?"
+    r")"
+)
+_STRUCTURED_ADDRESS = re.compile(
+    r"(?<![A-Za-z0-9])(?P<address>"
+    + _ADDRESS_START
+    + r"(?:,[ \t]+[A-Za-z0-9][A-Za-z0-9 .'-]{0,38}[A-Za-z0-9.])*"
+    + r",[ \t]+(?i:" + _CITY_ALTERNATION + r")"
+    + r")(?![A-Za-z])"
+)
+
 
 def detect_rule_pii(text: str) -> list[Span]:
-    """Return PERSON spans from titles, Name fields, and sign-offs."""
+    """Return PERSON and LOCATION spans from high-precision text patterns."""
     if not isinstance(text, str) or not text:
         return []
 
-    spans: dict[tuple[int, int], Span] = {}
+    spans: dict[tuple[int, int, str], Span] = {}
     for pattern in (_TITLE, _NAME_FIELD, _SIGNOFF,
                     _FOLLOW_UP, _SHIP_TO, _NICKNAME, _SURNAME_ROSTER,
                     _CIRCULAR, _UPDATE_FOR):
         for match in pattern.finditer(text):
             start, end = match.span("name")
             value = text[start:end]
-            spans[(start, end)] = Span(
+            spans[(start, end, "PERSON")] = Span(
                 start=start,
                 end=end,
                 label="PERSON",
@@ -58,4 +92,15 @@ def detect_rule_pii(text: str) -> list[Span]:
                 source="rules",
                 score=1.0,
             )
-    return sorted(spans.values(), key=lambda span: (span.start, span.end))
+    for match in _STRUCTURED_ADDRESS.finditer(text):
+        start, end = match.span("address")
+        value = text[start:end]
+        spans[(start, end, "LOCATION")] = Span(
+            start=start,
+            end=end,
+            label="LOCATION",
+            text=value,
+            source="rules",
+            score=1.0,
+        )
+    return sorted(spans.values(), key=lambda span: (span.start, span.end, span.label))

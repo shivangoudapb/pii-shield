@@ -185,3 +185,86 @@ def test_contextual_name_rules_detect_from_followup_shipto_nickname_roster_circu
         "Mukta",
         "Madhurima Sen",
     ]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_location"),
+    [
+        (
+            "Deliver to 41 Lotus Lane, Test Garden, Hyderabad tomorrow.",
+            "41 Lotus Lane, Test Garden, Hyderabad",
+        ),
+        (
+            "Address: 96 Maple Road, Sample Nagar, Hyderabad, 500034",
+            "96 Maple Road, Sample Nagar, Hyderabad",
+        ),
+        (
+            "Office at 2nd Cross, HSR Layout, Bengaluru.",
+            "2nd Cross, HSR Layout, Bengaluru",
+        ),
+        (
+            "Residence: Flat 4B, 12 MG Road, Indiranagar, Bengaluru 560038",
+            "Flat 4B, 12 MG Road, Indiranagar, Bengaluru",
+        ),
+        (
+            "Campus map desk: 23 River View Road, Fictional Sector 4, Mysuru, PIN 355322",
+            "23 River View Road, Fictional Sector 4, Mysuru",
+        ),
+    ],
+)
+def test_structured_address_rule_detects_full_indian_addresses(text, expected_location):
+    locations = [span for span in detect_rule_pii(text) if span.label == "LOCATION"]
+    assert len(locations) == 1
+    assert locations[0].text == expected_location
+    assert text[locations[0].start:locations[0].end] == expected_location
+    assert locations[0].source == "rules"
+
+
+def test_detect_replaces_split_ner_address_fragments_with_full_address():
+    text = "Ship to 96 Maple Road, Sample Nagar, Hyderabad, 500034"
+    s1 = text.index("96 Maple Road")
+    s2 = text.index("Hyderabad")
+    partial_ner = FakeNer({
+        text: [
+            Span(s1, s1 + len("96 Maple Road"), "LOCATION", "96 Maple Road", "ner", 0.88),
+            Span(s2, s2 + len("Hyderabad"), "LOCATION", "Hyderabad", "ner", 0.92),
+        ]
+    })
+    spans = detect(text, partial_ner)
+    assert [(span.label, span.text) for span in spans] == [
+        ("LOCATION", "96 Maple Road, Sample Nagar, Hyderabad"),
+        ("PINCODE", "500034"),
+    ]
+
+
+def test_detect_merges_adjacent_locality_and_city_ner_spans_but_not_city_lists():
+    addr_text = "Relocating near Indiranagar, Bengaluru next month."
+    i_start = addr_text.index("Indiranagar")
+    b_start = addr_text.index("Bengaluru")
+    merged = detect(
+        addr_text,
+        FakeNer({
+            addr_text: [
+                Span(i_start, i_start + len("Indiranagar"), "LOCATION", "Indiranagar", "ner", 0.82),
+                Span(b_start, b_start + len("Bengaluru"), "LOCATION", "Bengaluru", "ner", 0.90),
+            ]
+        }),
+    )
+    assert [(s.label, s.text) for s in merged] == [("LOCATION", "Indiranagar, Bengaluru")]
+
+    cities_text = "Offices in Mumbai, Pune"
+    m_start = cities_text.index("Mumbai")
+    p_start = cities_text.index("Pune")
+    separate = detect(
+        cities_text,
+        FakeNer({
+            cities_text: [
+                Span(m_start, m_start + len("Mumbai"), "LOCATION", "Mumbai", "ner", 0.90),
+                Span(p_start, p_start + len("Pune"), "LOCATION", "Pune", "ner", 0.90),
+            ]
+        }),
+    )
+    assert [(s.label, s.text) for s in separate] == [
+        ("LOCATION", "Mumbai"),
+        ("LOCATION", "Pune"),
+    ]

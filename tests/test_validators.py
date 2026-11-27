@@ -74,7 +74,19 @@ def test_phone_invalid(phone):
     assert not is_valid_phone(phone)
 
 
-@pytest.mark.parametrize("upi", ["name@okhdfcbank", "handle@oksbi", "user@paytm"])
+@pytest.mark.parametrize("upi", [
+    "name@okhdfcbank",
+    "handle@oksbi",
+    "user@paytm",
+    "rohan@ybl",
+    "priya.nair@ibl",
+    "merchant@axl",
+    "ananya@upi",
+    "kavya@kotak",
+    "shop@fbl",
+    "customer@apl",
+    "pay@barodampay",
+])
 def test_upi_valid_known_providers(upi):
     assert is_valid_upi(upi)
 

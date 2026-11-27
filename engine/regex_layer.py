@@ -32,10 +32,26 @@ _EMAIL_CANDIDATE = re.compile(
 _UPI_CANDIDATE = re.compile(r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9][A-Za-z0-9._-]{0,254}@[A-Za-z0-9-]+")
 _PINCODE_CANDIDATE = re.compile(r"(?<![0-9])[1-9][0-9]{5}(?![0-9])")
 _ADDRESS_CONTEXT = re.compile(
-    r"\b(?:bengaluru|bangalore|cross|road|sector|nagar)\b", re.IGNORECASE
+    r"\b(?:"
+    r"bengaluru|bangalore|mumbai|navi\s+mumbai|delhi|new\s+delhi|hyderabad|"
+    r"chennai|kolkata|pune|ahmedabad|jaipur|surat|lucknow|kanpur|nagpur|"
+    r"indore|thane|bhopal|visakhapatnam|vizag|patna|vadodara|ghaziabad|"
+    r"ludhiana|agra|nashik|faridabad|meerut|rajkot|varanasi|srinagar|"
+    r"aurangabad|amritsar|prayagraj|allahabad|ranchi|coimbatore|vijayawada|"
+    r"jodhpur|madurai|raipur|kota|guwahati|chandigarh|mysuru|mysore|noida|"
+    r"gurugram|gurgaon|kochi|cochin|thiruvananthapuram|trivandrum|mangaluru|"
+    r"mangalore|bhubaneswar|dehradun|shimla|panaji|goa|kerala|karnataka|"
+    r"maharashtra|tamil\s+nadu|telangana|gujarat|rajasthan|haryana|punjab|"
+    r"address|pin|pincode|postal|street|road|lane|cross|avenue|marg|"
+    r"sector|nagar|layout|colony|enclave|extension|phase|stage|block|pocket|"
+    r"plot|house|flat|apartment|apartments|floor|building|tower|residency|"
+    r"garden|gardens|park|vihar|puram|chowk|district|taluk|tehsil"
+    r")\b",
+    re.IGNORECASE,
 )
 _NON_ADDRESS_CONTEXT = re.compile(
-    r"\b(?:otp|order|verification|code|transaction|reference|tracking|order\s*(?:no|number|id))\b",
+    r"\b(?:otp|order|verification|code|transaction|reference|tracking|"
+    r"(?:atm|upi)\s*pin|order\s*(?:no|number|id))\b",
     re.IGNORECASE,
 )
 
