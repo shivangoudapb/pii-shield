@@ -8,7 +8,7 @@ import math
 import threading
 import time
 from collections import defaultdict, deque
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -16,6 +16,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -230,6 +231,7 @@ def create_app(
     rate_limit_requests: int = 30,
     rate_limit_window_seconds: float = 60.0,
     clock: Callable[[], float] = time.monotonic,
+    cors_origins: Sequence[str] = ("*",),
 ) -> FastAPI:
     """Create the app; tests can inject FakeNer and avoid model loading."""
 
@@ -283,6 +285,14 @@ def create_app(
         ),
         openapi_tags=OPENAPI_TAGS,
         lifespan=lifespan,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(cors_origins),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type"],
+        expose_headers=["Retry-After"],
     )
 
     @app.middleware("http")

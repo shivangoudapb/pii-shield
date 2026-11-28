@@ -6,10 +6,10 @@ Everything I could identify after reading the full codebase, eval results, error
 
 ## A. Stack Migration — Moving to Google
 
-### A1. Deployment: Modal → Google Cloud Run
-Your `modal_app.py` wraps a standard ASGI/FastAPI app. Cloud Run can serve the same Docker image you already have — push the existing `Dockerfile` to Artifact Registry and deploy. Free tier gives 2M requests/month, 360k vCPU-seconds, and 1 GiB outbound. Cold-start is comparable to Modal's scale-to-zero; you can set `min-instances: 1` to keep one warm if you want.
+### A1. [Done] Deployment: Modal + Google Cloud Run
+Your `modal_app.py` wraps a standard ASGI/FastAPI app. Cloud Run can serve the same Docker image you already have — push the existing `Dockerfile` to Artifact Registry and deploy (`modal_app.py` is kept alongside `cloudbuild.yaml` and `deploy/cloud_run_deploy.*` so Modal and Cloud Run coexist). Free tier gives 2M requests/month, 360k vCPU-seconds, and 1 GiB outbound. Cold-start is comparable to Modal's scale-to-zero; you can set `min-instances: 1` to keep one warm if you want.
 
-**What changes:** Delete `modal_app.py`, add a `clouddeploy.yaml` or a `gcloud run deploy` command in a script. The Dockerfile already works.
+**What changes:** Added `cloudbuild.yaml`, `.gcloudignore`, and `deploy/cloud_run_deploy.{ps1,sh}` while keeping `modal_app.py` active.
 
 ### A2. NER model: GLiNER → Gemma-based NER (or keep GLiNER, see notes)
 Google's options for free NER:
@@ -20,10 +20,10 @@ Google's options for free NER:
 > [!IMPORTANT]
 > **My honest take:** GLiNER is actually a good fit here — it's small, runs on CPU, is fast, and is specifically trained for PII. The weak spots (PERSON recall 0.74, LOCATION recall 0.44) are solvable by improving rules and post-processing, not necessarily by swapping the model. I'd keep GLiNER and focus improvements on the detection logic unless you specifically want a Google-branded model for portfolio/resume reasons.
 
-### A3. Container Registry: Docker Hub / Modal → Google Artifact Registry
+### A3. [Done] Container Registry: Docker Hub / Modal → Google Artifact Registry
 If you move to Cloud Run, your images naturally live in Artifact Registry. Free for the storage amounts you'd use.
 
-### A4. CI/CD: → Google Cloud Build
+### A4. [Done] CI/CD: → Google Cloud Build
 Free 120 build-minutes/day. Trigger on GitHub push, run tests, build image, deploy to Cloud Run. Replaces any manual `modal deploy` workflow.
 
 ### A5. Hosting the UI: → Firebase Hosting (optional)
@@ -195,10 +195,10 @@ If you build C1, the extension needs its own test suite: content script injectio
 
 | # | What | Effort | Impact | Dependencies |
 |---|---|---|---|---|
-| A1 | Modal → Cloud Run | Low | Medium (cost, Google stack) | Dockerfile already works |
+| A1 | Modal + Cloud Run `[Done]` | Low | Medium (cost, Google stack) | Dockerfile already works |
 | A2 | GLiNER → Google NER | High | Uncertain (may regress) | Needs GPU or accepts slowdown |
-| A3 | Artifact Registry | Low | Low (follows from A1) | A1 |
-| A4 | Cloud Build CI/CD | Medium | Medium | A1, A3 |
+| A3 | Artifact Registry `[Done]` | Low | Low (follows from A1) | A1 |
+| A4 | Cloud Build CI/CD `[Done]` | Medium | Medium | A1, A3 |
 | B1 | NER boundary stop-words `[Done]` | Low | High (fixes ~8 errors) | None |
 | B2 | Surname-comma sign-off `[Done]` | Low | Medium | None |
 | B3 | Contextual name rules `[Done]` | Low-Med | High (fixes ~10 misses) | None |

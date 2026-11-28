@@ -1,0 +1,55 @@
+# Google Cloud Build pipeline for PII Shield (Artifact Registry + Cloud Run).
+# Manual usage:
+#   gcloud builds submit --config cloudbuild.yaml .
+# GitHub trigger usage:
+#   Set substitution _TAG=$SHORT_SHA in the Cloud Build trigger settings.
+
+substitutions:
+  _REGION: us-central1
+  _REPO: pii-shield
+  _SERVICE: pii-shield
+  _TAG: latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    id: "build-image"
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${_TAG}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest"
+      - "."
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: "push-image"
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}"
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: "deploy-cloud-run"
+    entrypoint: "gcloud"
+    args:
+      - "run"
+      - "deploy"
+      - "${_SERVICE}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${_TAG}"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--port=7860"
+      - "--cpu=2"
+      - "--memory=4Gi"
+      - "--min-instances=0"
+      - "--max-instances=2"
+      - "--concurrency=4"
+      - "--timeout=150"
+      - "--allow-unauthenticated"
+
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${_TAG}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest"

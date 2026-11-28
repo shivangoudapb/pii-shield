@@ -194,3 +194,18 @@ def test_openapi_schema_documents_models_examples_and_error_codes():
     assert "413" in redact_post["responses"]
     assert "429" in redact_post["responses"]
     assert redact_post["tags"] == ["Redaction"]
+
+
+def test_cors_preflight_allows_cross_origin_extension_requests():
+    app = create_app(ner_detector=FakeNer({}))
+    with TestClient(app) as client:
+        preflight = client.options(
+            "/redact",
+            headers={
+                "Origin": "https://chatgpt.com",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+    assert preflight.status_code == 200
+    assert preflight.headers.get("access-control-allow-origin") == "*"
