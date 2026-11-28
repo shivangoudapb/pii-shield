@@ -46,9 +46,11 @@ image = (
     # Install CPU torch first. The pinned requirements then reuse this version.
     .pip_install("torch==2.11.0", index_url=CPU_TORCH_INDEX)
     .pip_install_from_requirements("requirements.txt")
+    .run_function(_download_model_and_tokenizer)
     .add_local_dir("engine", remote_path=f"{APP_ROOT}/engine", copy=True)
     .add_local_dir("api", remote_path=f"{APP_ROOT}/api", copy=True)
     .add_local_dir("web", remote_path=f"{APP_ROOT}/web", copy=True)
+    .add_local_dir("extension", remote_path=f"{APP_ROOT}/extension", copy=True, ignore=["tests", "tests/**"])
     .add_local_dir("eval", remote_path=f"{APP_ROOT}/eval", copy=True, ignore=["*"])
     .add_local_file(
         "eval/config.json",
@@ -56,7 +58,6 @@ image = (
         copy=True,
     )
     .add_local_file("redactor.py", remote_path=f"{APP_ROOT}/redactor.py", copy=True)
-    .run_function(_download_model_and_tokenizer)
     .env(
         {
             "HF_HUB_OFFLINE": "1",

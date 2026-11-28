@@ -14,7 +14,8 @@ build/
 dist/
 *.egg-info/
 docs/
-extension/
+.github/
+extension/tests/
 modal_app.py
 tests/
 eval/*

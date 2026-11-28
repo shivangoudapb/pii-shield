@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pii-shield"
-version = "0.1.0"
+version = "1.0.0"
 description = "India-aware, in-memory PII detection, placeholder redaction, and reply restoration."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
-keywords = ["pii", "redaction", "india", "aadhaar", "pan", "upi", "ner", "privacy"]
+keywords = ["pii", "redaction", "india", "aadhaar", "pan", "upi", "passport", "ner", "privacy", "fastapi"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -20,6 +20,12 @@ classifiers = [
     "Topic :: Text Processing :: Linguistic",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://pii-shield-ql5licjz5a-uc.a.run.app"
+BackupDemo = "https://bhavihalshivu--pii-shield-web-app.us-east.modal.run"
+Repository = "https://github.com/shivangoudapb/pii-shield"
+Issues = "https://github.com/shivangoudapb/pii-shield/issues"
 
 [project.optional-dependencies]
 ner = [

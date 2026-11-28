@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import functools
+import io
 import json
 import math
 import threading
 import time
+import zipfile
 from collections import defaultdict, deque
 from collections.abc import Callable, Sequence
 from contextlib import asynccontextmanager
@@ -17,7 +20,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from engine.detect import detect
@@ -28,8 +31,26 @@ from redactor import _redact_spans, restore as restore_text
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "eval" / "config.json"
 WEB_PATH = ROOT / "web"
+EXTENSION_PATH = ROOT / "extension"
 MAX_TEXT_CHARS = 20_000
-API_VERSION = "0.1.0"
+API_VERSION = "1.0.0"
+
+
+@functools.lru_cache(maxsize=1)
+def _build_extension_zip_bytes() -> bytes:
+    """Package static Chrome extension files in memory without touching disk."""
+    if not (EXTENSION_PATH / "manifest.json").exists():
+        raise FileNotFoundError("Chrome extension directory is unavailable.")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for file_path in sorted(EXTENSION_PATH.rglob("*")):
+            if not file_path.is_file():
+                continue
+            rel = file_path.relative_to(EXTENSION_PATH)
+            if rel.parts[0] == "tests" or "__pycache__" in rel.parts or file_path.name.startswith("."):
+                continue
+            zf.write(file_path, f"pii-shield-extension/{rel.as_posix()}")
+    return buf.getvalue()
 OPENAPI_TAGS = [
     {
         "name": "Redaction",
@@ -384,6 +405,23 @@ def create_app(
     @app.get("/style.css", include_in_schema=False)
     async def stylesheet() -> FileResponse:
         return FileResponse(WEB_PATH / "style.css", media_type="text/css")
+
+    @app.get("/favicon.png", include_in_schema=False)
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon() -> FileResponse:
+        return FileResponse(WEB_PATH / "favicon.png", media_type="image/png")
+
+    @app.get("/pii-shield-extension.zip", include_in_schema=False)
+    async def extension_zip() -> Response:
+        try:
+            payload = _build_extension_zip_bytes()
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Extension bundle not found.") from exc
+        return Response(
+            content=payload,
+            media_type="application/zip",
+            headers={"Content-Disposition": 'attachment; filename="pii-shield-extension.zip"'},
+        )
 
     return app
 

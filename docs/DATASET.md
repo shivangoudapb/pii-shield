@@ -4,26 +4,33 @@
 ~150-200 short, realistic, **fully synthetic** texts with labelled PII spans, so we can measure the detector honestly.
 
 ## Split
-- `eval/dev.jsonl`: ~60 items. Use freely for development and tuning.
-- `eval/test.jsonl`: ~100 items. **Locked.** Only run at the end of each evaluation round; do not tune against it.
+- `eval/dev.jsonl`: 60 items (original 8 labels). Use freely for development and tuning.
+- `eval/test.jsonl`: 100 items (original 8 labels). **Locked.** Do not modify or tune against it.
+- `eval/realistic.jsonl`: 540 multi-sentence / multi-paragraph synthetic items across 6 domains covering all **14 PII labels** (`eval/generate_realistic.py`, `seed=9407`).
 
 ## Format (JSONL, one object per line)
 ```json
-{"id": "t012", "context": "whatsapp", "text": "Hi, this is Ananya Rao. Call me on 98450 12345", "spans": [{"start": 15, "end": 25, "label": "PERSON"}, {"start": 38, "end": 49, "label": "PHONE"}]}
+{"id": "t012", "context": "whatsapp", "text": "Hi, this is Ananya Rao. Call me on 98450 12345", "spans": [{"start": 12, "end": 22, "label": "PERSON", "text": "Ananya Rao"}, {"start": 35, "end": 46, "label": "PHONE", "text": "98450 12345"}]}
 ```
-Offsets are character offsets, end exclusive. Verify them with a script that checks `text[start:end]` looks right.
+Offsets are character offsets, end exclusive. Verify them with `python -m eval.validate_dataset --split all`.
 
-## Entity labels
+## Entity labels (14)
 | Label | Include | Exclude |
 |---|---|---|
 | PERSON | full or partial personal names ("Ananya Rao", "Rahul") | companies, product names, job titles |
-| LOCATION | street/area/city/state parts of an address ("2nd Cross, HSR Layout, Bengaluru") | generic words like "home", "office" |
+| LOCATION | street/area/city/state parts of an address ("2nd Cross, HSR Layout, Bengaluru") | generic words like "home", "office", quoted song/film titles |
 | PHONE | Indian mobile numbers in any common format | order IDs, OTPs |
-| EMAIL | email addresses | |
-| AADHAAR | 12-digit valid Aadhaar-format numbers | any 12-digit number that fails the checksum |
-| PAN | PAN-format IDs | |
-| UPI | UPI IDs | normal email addresses |
+| EMAIL | email addresses | UPI handles |
+| AADHAAR | 12-digit valid Verhoeff Aadhaar numbers | any 12-digit number that fails the Verhoeff checksum |
+| PAN | PAN-format IDs (`[A-Z]{5}[0-9]{4}[A-Z]`) | Voter IDs |
+| UPI | UPI IDs across 80+ NPCI bank handles | normal email addresses |
 | PINCODE | 6-digit pincodes in address context | order numbers, OTPs |
+| DOB | birth dates in explicit DOB context (`DOB:`, `Born on`) | invoice dates, meeting dates, deadlines |
+| PASSPORT | Indian passport numbers (`[A-Z][1-9][0-9]{6}`) in passport context | generic alphanumeric codes |
+| VOTER_ID | Indian EPIC Voter IDs (`[A-Z]{3}[0-9]{7}`) | serial codes with trailing letters |
+| DRIVING_LICENSE | Indian DL numbers with valid state/UT RTO prefix + year + 7-digit serial | invalid state prefixes |
+| BANK_ACCOUNT | 9–18 digit numbers in explicit banking context (`A/c No`, `IFSC`) | bare order/tracking numbers |
+| IP_ADDRESS | valid IPv4 (`0–255` octets) and IPv6 addresses | software version numbers (`v1.2.3.4`) |
 
 Decision to make early: keep PERSON and LOCATION as separate labels, and treat full street addresses as LOCATION (no separate ADDRESS label). Keep it simple.
 

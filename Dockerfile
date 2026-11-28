@@ -12,11 +12,13 @@ COPY requirements.txt ./requirements.txt
 RUN python -m pip install --no-cache-dir -r requirements.txt
 
 RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin piishield
-COPY . .
+COPY deploy ./deploy
 
-# Cache both GLiNER and its base tokenizer during image construction.
+# Cache both GLiNER and its base tokenizer before copying app source so UI/API edits reuse this layer.
 RUN python -m deploy.download_model \
-    && chown -R piishield:piishield /home/piishield/.cache/huggingface /app
+    && chown -R piishield:piishield /home/piishield/.cache/huggingface
+
+COPY --chown=piishield:piishield . .
 
 ENV HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1

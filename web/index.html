@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f7fb" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
-  <title>PII Shield</title>
+  <title>PII Shield — India-Aware Reversible AI Redaction</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -103,11 +104,28 @@
       </section>
     </div>
 
+    <section class="extension-banner" aria-labelledby="extension-title">
+      <div class="extension-copy">
+        <p class="eyebrow">CHROME EXTENSION · MANIFEST V3</p>
+        <h2 id="extension-title">Redact &amp; restore directly inside ChatGPT, Gemini, and Claude</h2>
+        <p>Skip manual copy-pasting. Click <strong>Shield Prompt</strong> in your AI tab to replace Aadhaar, PAN, phones, UPI, passports, names, and addresses before sending—then restore replies in one click.</p>
+        <p class="extension-steps"><strong>30-second setup:</strong> Unzip the download → open <code>chrome://extensions</code> → enable <strong>Developer mode</strong> → click <strong>Load unpacked</strong> and select the unzipped folder.</p>
+      </div>
+      <div class="extension-actions">
+        <a class="button button-primary" href="/pii-shield-extension.zip" download="pii-shield-extension.zip">Download Extension (.zip)</a>
+        <a class="button button-quiet" href="https://github.com/shivangoudapb/pii-shield/tree/main/extension" target="_blank" rel="noreferrer">Extension Guide &amp; Source</a>
+      </div>
+    </section>
+
     </main>
 
     <footer class="site-footer">
-      <p>The hosted demo processes text in memory on a cloud server. Run locally to keep processing on your own machine (see README).</p>
-      <a href="/health" target="_blank" rel="noreferrer">Service status</a>
+      <p>The hosted demo processes text in memory and never logs or stores raw PII. Run locally to keep all inference on your own machine.</p>
+      <div class="footer-links">
+        <a href="/docs" target="_blank" rel="noreferrer">API Docs</a>
+        <a href="/health" target="_blank" rel="noreferrer">Service status</a>
+        <a href="https://github.com/shivangoudapb/pii-shield" target="_blank" rel="noreferrer">GitHub</a>
+      </div>
     </footer>
   </div>
   <script src="/app.js" defer></script>

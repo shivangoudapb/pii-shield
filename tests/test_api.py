@@ -60,14 +60,24 @@ def test_app_serves_the_ui_from_the_same_origin():
         page = client.get("/")
         script = client.get("/app.js")
         stylesheet = client.get("/style.css")
+        favicon = client.get("/favicon.png")
+        favicon_ico = client.get("/favicon.ico")
+        ext_zip = client.get("/pii-shield-extension.zip")
     assert page.status_code == script.status_code == stylesheet.status_code == 200
+    assert favicon.status_code == favicon_ico.status_code == 200
+    assert favicon.headers["content-type"].startswith("image/png")
+    assert ext_zip.status_code == 200
+    assert ext_zip.headers["content-type"] == "application/zip"
+    assert "pii-shield-extension.zip" in ext_zip.headers.get("content-disposition", "")
     assert "PII Shield" in page.text
     assert 'id="session-history"' in page.text
+    assert "/pii-shield-extension.zip" in page.text
     assert "currentMapping" in script.text
     assert "buildRedactionFromSpans" in script.text
     assert "HISTORY_STORAGE_KEY" in script.text
     assert ".entity-person" in stylesheet.text
     assert ".entity-disabled" in stylesheet.text
+    assert ".extension-banner" in stylesheet.text
 
 
 def test_redact_runs_detection_off_the_event_loop_thread():
@@ -174,7 +184,7 @@ def test_openapi_schema_documents_models_examples_and_error_codes():
     schema = schema_res.json()
 
     assert schema["info"]["title"] == "PII Shield"
-    assert schema["info"]["version"] == "0.1.0"
+    assert schema["info"]["version"] == "1.0.0"
     assert "Indian" in schema["info"]["description"]
 
     components = schema["components"]["schemas"]

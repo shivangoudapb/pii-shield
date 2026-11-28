@@ -11,24 +11,30 @@ PII Shield: detects Indian personal data in text, replaces it with consistent pl
 5. Keep dependencies minimal. Pin versions in `requirements.txt`.
 
 ## Stack
-Python 3.11, FastAPI, Pydantic, pytest, Hugging Face Transformers (NER), plain HTML/JS frontend served by FastAPI. Docker for deployment (port 7860).
+Python 3.11, FastAPI, Pydantic, pytest, Hugging Face Transformers / GLiNER (NER), plain HTML/JS frontend served by FastAPI, Manifest V3 Chrome Extension (`extension/`). Docker for deployment on Google Cloud Run (port 7860) and Modal (`modal_app.py`).
 
 ## Structure
 ```
 pii-shield/
   engine/
-    validators.py   # verhoeff, aadhaar, pan, phone, upi, pincode, email
+    validators.py   # verhoeff, aadhaar, pan, phone, upi, pincode, email, dob, passport, voter_id, dl, bank, ip
     regex_layer.py  # structured detection using validators
-    rules.py        # titles (Mr/Mrs/Dr/Shri), "Name:" fields, sign-offs
-    ner.py          # model wrapper -> spans
+    rules.py        # titles (Mr/Mrs/Dr/Shri), "Name:" fields, sign-offs, structured Indian addresses
+    ner.py          # GLiNER wrapper -> spans + prefix/blocklist/address post-processing
     merge.py        # overlap resolution
     detect.py       # runs all layers -> merged spans
+  pii_shield/       # pip-installable library facade
   redactor.py       # redact(text) -> (redacted, mapping); restore(text, mapping)
-  api/main.py       # FastAPI app
-  web/              # index.html, app.js, style.css
-  eval/             # dev.jsonl, test.jsonl, run_eval.py, results.md
+  api/main.py       # FastAPI app (/redact, /restore, /health, /metrics, /docs, static UI)
+  web/              # index.html, app.js, style.css, favicon.png
+  extension/        # Manifest V3 Chrome Extension + Node test suite (E12)
+  deploy/           # Cloud Run deploy scripts, model cache helper, extension packager
+  eval/             # dev.jsonl, test.jsonl, realistic.jsonl, run_eval.py, results.md
   tests/
   Dockerfile
+  cloudbuild.yaml
+  modal_app.py
+  pyproject.toml
   README.md
 ```
 
@@ -36,16 +42,22 @@ pii-shield/
 ```python
 {"start": int, "end": int, "label": str, "text": str, "source": "regex|rules|ner", "score": float}
 ```
-Labels: `PERSON, LOCATION, PHONE, EMAIL, AADHAAR, PAN, UPI, PINCODE`
-(`ADDRESS` may be merged into `LOCATION` for simplicity. See DATASET.md.)
+Labels (14): `PERSON, LOCATION, PHONE, EMAIL, AADHAAR, PAN, UPI, PINCODE, DOB, PASSPORT, VOTER_ID, DRIVING_LICENSE, BANK_ACCOUNT, IP_ADDRESS`
+(`ADDRESS` is merged into `LOCATION` for simplicity. See DATASET.md.)
 
 ## Validation rules
 - **Aadhaar:** 12 digits, first digit 2-9, passes Verhoeff checksum. May be written with spaces/hyphens in groups of 4.
 - **PAN:** `[A-Z]{5}[0-9]{4}[A-Z]`.
 - **Phone:** Indian mobile, 10 digits starting 6-9, optional `+91`, `91`, or `0` prefix, optional spaces/hyphens.
-- **UPI:** `handle@provider` (e.g. `name@okhdfcbank`). Must not be confused with an email. Check the provider against a known list of UPI handles.
+- **UPI:** `handle@provider` (e.g. `name@okhdfcbank`). Must not be confused with an email. Check the provider against 80+ NPCI UPI handles.
 - **Pincode:** 6 digits, first digit 1-9, only flagged when in an address-like context (to avoid flagging random 6-digit numbers such as OTPs or order numbers).
 - **Email:** standard pattern.
+- **DOB:** explicit date-of-birth context (`DOB`, `Date of Birth`, `Born on`) + valid calendar date in 1900–2025.
+- **Passport:** Indian passport `[A-Z][1-9][0-9]{6}` in passport context.
+- **Voter ID (EPIC):** `[A-Z]{3}[0-9]{7}` (not followed by PAN trailing letter).
+- **Driving License:** valid Indian RTO state/UT code (`AN`–`WB`) + 2-digit RTO + 4-digit year + 7-digit serial.
+- **Bank Account:** 9–18 digits only when preceded by explicit banking context (`A/c No`, `Account No`, `IFSC`, `Beneficiary account`).
+- **IP Address:** valid IPv4 (`0–255` octets, non-version context) and IPv6 addresses.
 
 ## Merge priority
 When spans overlap: **regex (validated) > rules > NER**. If same source, prefer the longer span. Drop NER spans below a configurable score threshold.
@@ -74,6 +86,6 @@ When spans overlap: **regex (validated) > rules > NER**. If same source, prefer 
 Tests pass, no raw text in logs, code is understandable by the project owner (they must be able to explain every layer in an interview).
 
 ## Deployment notes
-- Hugging Face Spaces, Docker SDK, app on port 7860.
-- Download the NER model during `docker build`, not at runtime.
+- Google Cloud Run (primary, port 7860 via `Dockerfile` + `cloudbuild.yaml`) and Modal (`modal_app.py` backup).
+- Download the NER model during image build (`deploy/download_model.py`), not at runtime.
 - Serve static UI from FastAPI so there is a single service.

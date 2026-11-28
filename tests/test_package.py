@@ -11,16 +11,17 @@ def test_pyproject_toml_defines_package_metadata_and_extras():
 
     project = data["project"]
     assert project["name"] == "pii-shield"
-    assert project["version"] == "0.1.0"
+    assert project["version"] == "1.0.0"
     assert project["requires-python"] == ">=3.11"
     assert "ner" in project["optional-dependencies"]
     assert "api" in project["optional-dependencies"]
+    assert "Homepage" in project["urls"]
 
 
 def test_pii_shield_public_package_exports_core_api():
     import pii_shield
 
-    assert pii_shield.__version__ == "0.1.0"
+    assert pii_shield.__version__ == "1.0.0"
     redacted, mapping = pii_shield.redact("Name: Ananya Rao; call 9845012345")
     assert redacted == "Name: [PERSON_1]; call [PHONE_1]"
     assert pii_shield.restore(redacted, mapping) == "Name: Ananya Rao; call 9845012345"

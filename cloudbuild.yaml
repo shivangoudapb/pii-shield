@@ -15,9 +15,18 @@ options:
 
 steps:
   - name: "gcr.io/cloud-builders/docker"
+    id: "pull-cache"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - "docker pull ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest || exit 0"
+
+  - name: "gcr.io/cloud-builders/docker"
     id: "build-image"
     args:
       - "build"
+      - "--cache-from"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest"
       - "-t"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${_TAG}"
       - "-t"

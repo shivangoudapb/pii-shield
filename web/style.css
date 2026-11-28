@@ -183,9 +183,19 @@ h3 { margin-bottom: 0; font: 700 13px Manrope, sans-serif; }
 .history-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); font-weight: 600; margin-bottom: 2px; }
 .history-sub { color: var(--muted); font-size: 10px; }
 .history-actions { display: flex; flex: 0 0 auto; gap: 6px; }
-.site-footer { display: flex; justify-content: space-between; gap: 15px; margin: 30px 0 24px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+.extension-banner { display: flex; align-items: center; justify-content: space-between; gap: 22px; margin-top: 18px; padding: 20px 23px; border: 1px solid var(--notice-border); border-radius: 17px; background: var(--paper); box-shadow: var(--shadow); }
+.extension-copy { max-width: 700px; }
+.extension-copy h2 { margin-bottom: 6px; font-size: 18px; }
+.extension-copy p { margin: 0 0 6px; color: var(--ink-muted); font-size: 12.5px; line-height: 1.55; }
+.extension-copy .extension-steps { margin-bottom: 0; color: var(--muted); font-size: 11.5px; }
+.extension-copy code { padding: 1px 5px; border-radius: 5px; background: var(--pill-bg); color: var(--pill-ink); font-size: 11px; }
+.extension-actions { display: flex; flex-direction: column; flex: 0 0 auto; gap: 8px; min-width: 205px; }
+.extension-actions a { text-decoration: none; }
+.site-footer { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin: 30px 0 24px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
 .site-footer p { margin: 0; }
-.site-footer a { flex: 0 0 auto; color: var(--pill-ink); }
+.footer-links { display: flex; gap: 14px; flex: 0 0 auto; }
+.site-footer a { flex: 0 0 auto; color: var(--pill-ink); text-decoration: none; font-weight: 600; }
+.site-footer a:hover { text-decoration: underline; }
 
 @media (max-width: 760px) {
   .page-shell { width: min(100% - 28px, 560px); }
@@ -197,8 +207,10 @@ h3 { margin-bottom: 0; font: 700 13px Manrope, sans-serif; }
   .sample-buttons { width: 100%; }
   .sample-buttons .button { flex: 1; }
   .workflow-grid { grid-template-columns: 1fr; }
+  .extension-banner { flex-direction: column; align-items: stretch; }
+  .extension-actions { min-width: 0; }
   .card { padding: 19px; }
-  .site-footer { flex-direction: column; }
+  .site-footer { flex-direction: column; align-items: flex-start; }
 }
 
 @media (prefers-reduced-motion: reduce) {

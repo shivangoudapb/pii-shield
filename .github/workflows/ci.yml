@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  python-and-extension-tests:
+    name: Python 3.11 & Extension MV3 Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install CPU PyTorch and pinned requirements
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.11.0
+          python -m pip install -r requirements.txt
+
+      - name: Validate synthetic datasets
+        run: |
+          python -m eval.validate_dataset --split dev
+          python -m eval.validate_dataset --split realistic
+
+      - name: Run Python & FastAPI test suite
+        run: python -m pytest -q
+
+      - name: Run Chrome Extension (E12) test suite & bundle check
+        run: |
+          node --test extension/tests/extension.test.js
+          python deploy/package_extension.py
