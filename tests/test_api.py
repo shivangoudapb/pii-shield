@@ -64,6 +64,8 @@ def test_app_serves_the_ui_from_the_same_origin():
         favicon_ico = client.get("/favicon.ico")
         ext_zip = client.get("/pii-shield-extension.zip")
     assert page.status_code == script.status_code == stylesheet.status_code == 200
+    assert stylesheet.headers.get("cache-control") == "no-cache"
+    assert "/style.css?v=1.0.0" in page.text
     assert favicon.status_code == favicon_ico.status_code == 200
     assert favicon.headers["content-type"].startswith("image/png")
     assert ext_zip.status_code == 200

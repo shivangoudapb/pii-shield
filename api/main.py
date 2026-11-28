@@ -394,17 +394,19 @@ def create_app(
         metrics.record_restore()
         return {"restored": restored}
 
+    no_cache_headers = {"Cache-Control": "no-cache"}
+
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
-        return FileResponse(WEB_PATH / "index.html")
+        return FileResponse(WEB_PATH / "index.html", headers=no_cache_headers)
 
     @app.get("/app.js", include_in_schema=False)
     async def app_js() -> FileResponse:
-        return FileResponse(WEB_PATH / "app.js", media_type="text/javascript")
+        return FileResponse(WEB_PATH / "app.js", media_type="text/javascript", headers=no_cache_headers)
 
     @app.get("/style.css", include_in_schema=False)
     async def stylesheet() -> FileResponse:
-        return FileResponse(WEB_PATH / "style.css", media_type="text/css")
+        return FileResponse(WEB_PATH / "style.css", media_type="text/css", headers=no_cache_headers)
 
     @app.get("/favicon.png", include_in_schema=False)
     @app.get("/favicon.ico", include_in_schema=False)
