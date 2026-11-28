@@ -6,7 +6,7 @@ from engine.detect import detect
 from engine.ner import NerDetector
 from engine.spans import Span
 
-_PLACEHOLDER = re.compile(r"\[([A-Za-z]+_[0-9]+)\]", re.IGNORECASE)
+_PLACEHOLDER = re.compile(r"\[([A-Za-z][A-Za-z_]*_[0-9]+)\]", re.IGNORECASE)
 
 
 def _normalise_entity(value: str) -> str:

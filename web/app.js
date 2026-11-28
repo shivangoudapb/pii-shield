@@ -11,7 +11,7 @@ const HISTORY_STORAGE_KEY = "pii_shield_sessions_v1";
 const MAX_HISTORY_ITEMS = 10;
 
 const samples = {
-  resume: "Resume contact: Dr. Ananya Rao | mobile +91 98450 12345 | mail ananya.rao@example.com\nAddress: 18 Cedar Cross, Sample Nagar, Bengaluru 560001",
+  resume: "Resume contact: Dr. Ananya Rao | DOB: 14 Aug 1998 | mobile +91 98450 12345 | mail ananya.rao@example.com | Passport: J8364921\nAddress: 18 Cedar Cross, Sample Nagar, Bengaluru 560001",
   whatsapp: "hii team 👋 sagar can u share ur resume? call 98450-12345\nfwd: pls send the draft to kiran@example.com today",
   invoice: "Invoice to Kavya Menon; phone 09845012345; PAN ABCDE1234F\nAadhaar ref: 234567890123 (synthetic invalid checksum; should not be flagged)\nShip to 18 Maple Road, Demo Layout, Pune 411001",
 };

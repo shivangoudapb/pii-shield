@@ -117,3 +117,27 @@ def test_shared_span_schema_has_all_required_fields():
     assert (span.start, span.end, span.label, span.text, span.source, span.score) == (
         2, 6, "PHONE", "1234", "regex", 1.0
     )
+
+
+def test_detects_passport_voter_id_driving_license_dob_bank_account_and_ip():
+    text = (
+        "Passport: J8364921 | Voter ID EPIC: DLQ4019283 | "
+        "DL KA-01-2020-1234567 | DOB: 14/08/1998 | "
+        "Bank Account No: 309182736451 | Client IP 49.37.142.88"
+    )
+    assert labels_for(text) == [
+        ("PASSPORT", "J8364921"),
+        ("VOTER_ID", "DLQ4019283"),
+        ("DRIVING_LICENSE", "KA-01-2020-1234567"),
+        ("DOB", "14/08/1998"),
+        ("BANK_ACCOUNT", "309182736451"),
+        ("IP_ADDRESS", "49.37.142.88"),
+    ]
+
+
+def test_dob_and_bank_account_require_context_to_avoid_false_alarms():
+    text = (
+        "Deployment scheduled on 14/08/2025 under tracking reference 309182736451 "
+        "and commit e3e39c51 on version 3.11.0."
+    )
+    assert detect_structured_pii(text) == []

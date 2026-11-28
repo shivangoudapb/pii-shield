@@ -1,8 +1,10 @@
 """Pure validators for Indian structured identifiers."""
 
+from datetime import date
+import ipaddress
 import re
 
-from engine.constants import UPI_PROVIDERS
+from engine.constants import INDIAN_STATE_CODES, UPI_PROVIDERS
 
 # Verhoeff multiplication table (d), permutation table (p), and inverse table
 # (inv), as published in the standard Verhoeff algorithm description.
@@ -40,6 +42,29 @@ _EMAIL_RE = re.compile(
     r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
 )
 _PINCODE_RE = re.compile(r"^[1-9][0-9]{5}$")
+_PASSPORT_RE = re.compile(r"^[A-Z][0-9]{7}$", re.IGNORECASE)
+_VOTER_ID_RE = re.compile(r"^[A-Z]{3}[0-9]{7}$", re.IGNORECASE)
+_DRIVING_LICENSE_RE = re.compile(
+    r"^([A-Z]{2})[ -]?([0-9]{2})[ -]?([0-9]{4})[ -]?([0-9]{7})$", re.IGNORECASE
+)
+_BANK_ACCOUNT_RE = re.compile(r"^[0-9]+(?:[ -][0-9]+)*$")
+_DOB_DMY_RE = re.compile(r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$")
+_DOB_YMD_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+_DOB_TEXT_RE = re.compile(r"^(\d{1,2})\s+([A-Za-z]+),?\s+(\d{4})$")
+_MONTHS = {
+    "jan": 1, "january": 1,
+    "feb": 2, "february": 2,
+    "mar": 3, "march": 3,
+    "apr": 4, "april": 4,
+    "may": 5,
+    "jun": 6, "june": 6,
+    "jul": 7, "july": 7,
+    "aug": 8, "august": 8,
+    "sep": 9, "sept": 9, "september": 9,
+    "oct": 10, "october": 10,
+    "nov": 11, "november": 11,
+    "dec": 12, "december": 12,
+}
 
 
 def verhoeff_check(number: str) -> bool:
@@ -103,3 +128,81 @@ def is_valid_pincode(value: str) -> bool:
 
 def is_valid_email(value: str) -> bool:
     return isinstance(value, str) and _EMAIL_RE.fullmatch(value) is not None
+
+
+def is_valid_passport(value: str) -> bool:
+    """Validate Indian passport format ([A-Z][0-9]{7}, non-zero serial)."""
+    if not isinstance(value, str) or not value.isascii() or not _PASSPORT_RE.fullmatch(value):
+        return False
+    return value[1:] != "0000000"
+
+
+def is_valid_voter_id(value: str) -> bool:
+    """Validate Indian Voter ID / EPIC format ([A-Z]{3}[0-9]{7}, non-zero serial)."""
+    if not isinstance(value, str) or not value.isascii() or not _VOTER_ID_RE.fullmatch(value):
+        return False
+    return value[3:] != "0000000"
+
+
+def is_valid_driving_license(value: str) -> bool:
+    """Validate standard 15-character Indian Parivahan Driving Licence format."""
+    if not isinstance(value, str) or not value.isascii():
+        return False
+    match = _DRIVING_LICENSE_RE.fullmatch(value)
+    if not match:
+        return False
+    state, rto, year_str, serial = match.groups()
+    if state.upper() not in INDIAN_STATE_CODES or rto == "00" or serial == "0000000":
+        return False
+    year = int(year_str)
+    return 1950 <= year <= date.today().year
+
+
+def is_valid_dob(value: str) -> bool:
+    """Validate calendar Date of Birth strings in common Indian/ISO formats."""
+    if not isinstance(value, str) or not value.isascii():
+        return False
+    text = value.strip()
+    dmy = _DOB_DMY_RE.fullmatch(text)
+    if dmy:
+        day, month, year = (int(part) for part in dmy.groups())
+    else:
+        ymd = _DOB_YMD_RE.fullmatch(text)
+        if ymd:
+            year, month, day = (int(part) for part in ymd.groups())
+        else:
+            named = _DOB_TEXT_RE.fullmatch(text)
+            if not named:
+                return False
+            day_str, month_name, year_str = named.groups()
+            month = _MONTHS.get(month_name.lower(), 0)
+            if not month:
+                return False
+            day, year = int(day_str), int(year_str)
+
+    if not (1900 <= year <= date.today().year):
+        return False
+    try:
+        date(year, month, day)
+    except ValueError:
+        return False
+    return True
+
+
+def is_valid_bank_account(value: str) -> bool:
+    """Validate 9-to-18-digit Indian bank account numbers (with optional separators)."""
+    if not isinstance(value, str) or not value.isascii() or not _BANK_ACCOUNT_RE.fullmatch(value):
+        return False
+    digits = value.replace(" ", "").replace("-", "")
+    return 9 <= len(digits) <= 18 and int(digits) > 0
+
+
+def is_valid_ip_address(value: str) -> bool:
+    """Validate IPv4 or IPv6 literal addresses."""
+    if not isinstance(value, str) or not value.isascii() or "/" in value:
+        return False
+    try:
+        ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return True

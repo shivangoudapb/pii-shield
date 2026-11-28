@@ -12,6 +12,12 @@ SpanLabel = Literal[
     "PAN",
     "UPI",
     "PINCODE",
+    "DOB",
+    "PASSPORT",
+    "VOTER_ID",
+    "DRIVING_LICENSE",
+    "BANK_ACCOUNT",
+    "IP_ADDRESS",
 ]
 SpanSource = Literal["regex", "rules", "ner"]
 

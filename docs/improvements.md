@@ -172,7 +172,7 @@ Store past redaction sessions in `localStorage` or `IndexedDB` (redacted text + 
 ### E8. [Done] Telemetry / analytics (privacy-safe)
 Track anonymous usage metrics: how many redactions, how many spans detected, latency, error rates. Use something privacy-friendly and self-hosted like Plausible or just log counts server-side. No request bodies, ever.
 
-### E9. Add more PII types
+### E9. [Done] Add more PII types
 - **Date of birth**: Common in resumes and forms
 - **Passport number**: Indian passport format `[A-Z][0-9]{7}`
 - **Voter ID**: Indian EPIC format `[A-Z]{3}[0-9]{7}`
@@ -225,7 +225,7 @@ If you build C1, the extension needs its own test suite: content script injectio
 | E6 | Selective redaction `[Done]` | Medium | High (UX) | None |
 | E7 | Session history `[Done]` | Low-Med | Medium (UX) | None |
 | E8 | Privacy-safe telemetry `[Done]` | Low-Med | Low-Med (observability) | None |
-| E9 | More PII types | Medium | Medium | New validators, eval data |
+| E9 | More PII types `[Done]` | Medium | Medium | New validators, eval data |
 | E10 | Better error UI `[Done]` | Low | Low | None |
 | E11 | Accessibility audit `[Done]` | Low | Low | None |
 

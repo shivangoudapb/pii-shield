@@ -394,3 +394,11 @@ CORPORATE_SUFFIX_WORDS = (
     "Ventures",
     "Works",
 )
+
+# Official 2-letter Indian State / Union Territory RTO prefixes for Driving Licences.
+INDIAN_STATE_CODES = frozenset({
+    "AN", "AP", "AR", "AS", "BR", "CG", "CH", "DD", "DL", "DN",
+    "GA", "GJ", "HP", "HR", "JH", "JK", "KA", "KL", "LA", "LD",
+    "MH", "ML", "MN", "MP", "MZ", "NL", "OD", "OR", "PB", "PY",
+    "RJ", "SK", "TG", "TN", "TR", "TS", "UA", "UK", "UP", "WB",
+})

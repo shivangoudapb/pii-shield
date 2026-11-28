@@ -315,3 +315,23 @@ def test_detect_suppresses_person_false_alarms_inside_company_names(company_snip
             idx = company_snippet.index(word)
             fake_spans.append(Span(idx, idx + len(word), "PERSON", word, "ner", 0.91))
     assert detect(company_snippet, FakeNer({company_snippet: fake_spans})) == []
+
+
+def test_underscore_labels_redact_and_restore_round_trip():
+    text = (
+        "Voter ID DLQ4019283, DL KA-01-2020-1234567, "
+        "A/c No: 309182736451, DOB: 14 Aug 1998, Passport J8364921, IP 49.37.142.88"
+    )
+    redacted, mapping = redact(text)
+    assert "[VOTER_ID_1]" in redacted
+    assert "[DRIVING_LICENSE_1]" in redacted
+    assert "[BANK_ACCOUNT_1]" in redacted
+    assert "[DOB_1]" in redacted
+    assert "[PASSPORT_1]" in redacted
+    assert "[IP_ADDRESS_1]" in redacted
+    assert restore(redacted, mapping) == text
+    assert restore(redacted.lower(), mapping) == text.lower().replace(
+        "dlq4019283", "DLQ4019283"
+    ).replace("ka-01-2020-1234567", "KA-01-2020-1234567").replace(
+        "14 aug 1998", "14 Aug 1998"
+    ).replace("j8364921", "J8364921")

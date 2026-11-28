@@ -170,10 +170,10 @@ h3 { margin-bottom: 0; font: 700 13px Manrope, sans-serif; }
 @media (prefers-color-scheme: dark) { .entity-score { background: rgba(255, 255, 255, .14); } }
 .entity-person { background: var(--ent-person-bg); box-shadow: inset 0 -2px var(--ent-person-line); }
 .entity-location { background: var(--ent-location-bg); box-shadow: inset 0 -2px var(--ent-location-line); }
-.entity-phone, .entity-aadhaar { background: var(--ent-phone-bg); box-shadow: inset 0 -2px var(--ent-phone-line); }
-.entity-pan, .entity-pincode { background: var(--ent-pan-bg); box-shadow: inset 0 -2px var(--ent-pan-line); }
-.entity-email { background: var(--ent-email-bg); box-shadow: inset 0 -2px var(--ent-email-line); }
-.entity-upi { background: var(--ent-upi-bg); box-shadow: inset 0 -2px var(--ent-upi-line); }
+.entity-phone, .entity-aadhaar, .entity-bank_account { background: var(--ent-phone-bg); box-shadow: inset 0 -2px var(--ent-phone-line); }
+.entity-pan, .entity-pincode, .entity-passport, .entity-voter_id, .entity-driving_license { background: var(--ent-pan-bg); box-shadow: inset 0 -2px var(--ent-pan-line); }
+.entity-email, .entity-ip_address { background: var(--ent-email-bg); box-shadow: inset 0 -2px var(--ent-email-line); }
+.entity-upi, .entity-dob { background: var(--ent-upi-bg); box-shadow: inset 0 -2px var(--ent-upi-line); }
 .result-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
 .result-footer p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 210px; overflow: auto; }
