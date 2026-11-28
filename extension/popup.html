@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PII Shield</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="popup-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">P</span>
+      <div>
+        <h1>PII Shield</h1>
+        <p id="health-text" class="sub">Checking service…</p>
+      </div>
+    </div>
+    <span id="health-dot" class="dot dot-pending" title="Backend status"></span>
+  </header>
+
+  <section class="section">
+    <div class="row-between">
+      <span class="label">Session memory</span>
+      <button id="clear-session" type="button" class="btn btn-quiet">Clear</button>
+    </div>
+    <p id="session-count" class="hint">0 placeholders mapped in this browser session.</p>
+  </section>
+
+  <section class="section">
+    <label class="label" for="quick-input">Quick Redact / Restore Pad</label>
+    <textarea id="quick-input" rows="4" placeholder="Paste text to redact, or paste an AI reply with [PERSON_1] placeholders to restore…"></textarea>
+    <div class="btn-row">
+      <button id="quick-redact" type="button" class="btn btn-primary">Redact &amp; Copy</button>
+      <button id="quick-restore" type="button" class="btn btn-teal">Restore &amp; Copy</button>
+    </div>
+    <p id="quick-status" class="hint" role="status" aria-live="polite">Works on any tab or site.</p>
+  </section>
+
+  <details class="section settings">
+    <summary class="label">Backend &amp; Preferences</summary>
+    <div class="settings-body">
+      <label class="field-label" for="mode-select">API Endpoint</label>
+      <select id="mode-select">
+        <option value="cloud_run">Google Cloud Run (Primary)</option>
+        <option value="modal">Modal Cloud (Backup)</option>
+        <option value="local">Local Server (127.0.0.1:7860)</option>
+        <option value="custom">Custom URL</option>
+      </select>
+      <input id="custom-url" type="url" class="hidden" placeholder="https://your-service.a.run.app">
+      <label class="check-row">
+        <input id="fallback-toggle" type="checkbox" checked>
+        <span>Auto-fallback to Modal if primary is sleeping/paused</span>
+      </label>
+      <label class="check-row">
+        <input id="review-toggle" type="checkbox" checked>
+        <span>Review &amp; toggle detected spans before replacing prompt</span>
+      </label>
+    </div>
+  </details>
+
+  <script src="shared.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

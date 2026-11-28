@@ -79,7 +79,7 @@ Currently English-only. GLiNER does support multilingual text to some degree. Th
 
 ## C. User Experience — Beyond Copy-Paste
 
-### C1. Chrome Extension (most practical next step)
+### C1. [Done] Chrome Extension (most practical next step)
 A Chrome extension can **intercept the AI chat textbox** and auto-redact before sending, then auto-restore in the response. Architecture options:
 
 | Approach | How it works | Pros | Cons |
@@ -186,7 +186,7 @@ Currently errors show as a text string in the status area. Add proper toast noti
 ### E11. [Done] Accessibility audit
 The UI uses semantic HTML and ARIA, which is good. Run an axe audit, check keyboard navigation, screen reader flow, and color contrast for the entity highlight colors.
 
-### E12. Tests for the Chrome extension
+### E12. [Done] Tests for the Chrome extension
 If you build C1, the extension needs its own test suite: content script injection tests, mapping persistence tests, DOM manipulation tests for each supported AI chat site.
 
 ---
@@ -210,7 +210,7 @@ If you build C1, the extension needs its own test suite: content script injectio
 | B9 | Lowercase name trimming `[Done]` | Low | Low | B1 |
 | B10 | Bigger eval dataset `[Done]` | Medium | High (confidence in scores) | None |
 | B11 | Native-script support | High | Medium | New eval set, possibly new model |
-| C1 | Chrome extension | High | Very High (core UX) | API must be deployed |
+| C1 | Chrome extension `[Done]` | High | Very High (core UX) | API must be deployed |
 | C2 | In-browser inference | High | High (true privacy) | ONNX export of GLiNER |
 | C3 | System proxy | Very High | Medium | Not recommended first |
 | C4 | Keyboard shortcut app | Medium | Medium | None |
@@ -228,6 +228,7 @@ If you build C1, the extension needs its own test suite: content script injectio
 | E9 | More PII types `[Done]` | Medium | Medium | New validators, eval data |
 | E10 | Better error UI `[Done]` | Low | Low | None |
 | E11 | Accessibility audit `[Done]` | Low | Low | None |
+| E12 | Chrome extension tests `[Done]` | Medium | High (reliability) | C1 |
 
 > [!TIP]
 > The highest-impact, lowest-effort wins are **B1 + B2 + B3** (detection rule fixes — could boost PERSON recall from 0.74 to ~0.85+), followed by **A1** (Modal → Cloud Run, since the Dockerfile already works), and then **C1** (Chrome extension for the real UX leap).
