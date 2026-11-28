@@ -14,11 +14,11 @@ import string
 from pathlib import Path
 from typing import TypeAlias
 
+from engine.constants import INDIAN_STATE_CODES
 from engine.validators import is_valid_phone
 from eval.generate_dataset import (
     COMMON_WORD_NAMES,
     FIRST_NAMES_BY_TRADITION,
-    LABELS,
     NICKNAMES,
     SURNAMES,
     SURNAMES_BY_TRADITION,
@@ -30,6 +30,22 @@ from eval.generate_dataset import (
 
 ROOT = Path(__file__).resolve().parent
 Part: TypeAlias = str | tuple[str, str]
+REALISTIC_LABELS = {
+    "PERSON",
+    "LOCATION",
+    "PHONE",
+    "EMAIL",
+    "AADHAAR",
+    "PAN",
+    "UPI",
+    "PINCODE",
+    "DOB",
+    "PASSPORT",
+    "VOTER_ID",
+    "DRIVING_LICENSE",
+    "BANK_ACCOUNT",
+    "IP_ADDRESS",
+}
 
 REALISTIC_CONTEXTS = (
     "email_thread",
@@ -238,6 +254,57 @@ def _make_upi(rng: random.Random, person: dict[str, str], idx: int) -> str:
     return f"{handle}@{provider}"
 
 
+_SORTED_STATE_CODES = tuple(sorted(INDIAN_STATE_CODES))
+_DOB_MONTH_NAMES = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _make_passport(rng: random.Random) -> str:
+    letter = rng.choice("ABCDEFGHJKLMNPRSTUVWXYZ")
+    return f"{letter}{rng.randint(1, 9)}{rng.randrange(100000, 1000000):06d}"
+
+
+def _make_voter_id(rng: random.Random) -> str:
+    prefix = "".join(rng.choice(string.ascii_uppercase) for _ in range(3))
+    return f"{prefix}{rng.randint(1, 9)}{rng.randrange(100000, 1000000):06d}"
+
+
+def _make_driving_license(rng: random.Random, style: int) -> str:
+    state = rng.choice(_SORTED_STATE_CODES)
+    rto = f"{rng.randint(1, 45):02d}"
+    year = rng.randint(2006, 2024)
+    serial = f"{rng.randint(1, 9)}{rng.randrange(100000, 1000000):06d}"
+    if style % 3 == 0:
+        return f"{state}-{rto}-{year}-{serial}"
+    if style % 3 == 1:
+        return f"{state} {rto} {year} {serial}"
+    return f"{state}{rto}{year}{serial}"
+
+
+def _make_dob(rng: random.Random, style: int) -> str:
+    year = rng.randint(1972, 2004)
+    month = rng.randint(1, 12)
+    day = rng.randint(1, 28)
+    if style % 4 == 0:
+        return f"{day:02d}/{month:02d}/{year}"
+    if style % 4 == 1:
+        return f"{day:02d}-{month:02d}-{year}"
+    if style % 4 == 2:
+        return f"{year}-{month:02d}-{day:02d}"
+    return f"{day} {_DOB_MONTH_NAMES[month - 1]} {year}"
+
+
+def _make_bank_account(rng: random.Random, style: int) -> str:
+    length = (11, 12, 14, 16)[style % 4]
+    return str(rng.randint(1, 9)) + "".join(str(rng.randrange(10)) for _ in range(length - 1))
+
+
+def _make_ip(rng: random.Random, style: int) -> str:
+    if style % 5 == 0:
+        return f"2001:db8:{rng.randint(1, 255):x}::{rng.randint(1, 99):x}"
+    first = rng.choice((49, 103, 106, 117, 122, 192))
+    return f"{first}.{rng.randint(1, 250)}.{rng.randint(1, 250)}.{rng.randint(2, 254)}"
+
+
 def _make_address_and_pin(rng: random.Random, style: int) -> tuple[str, str, str]:
     city, pin_prefix = rng.choice(CITY_PIN_PREFIX)
     pin = f"{pin_prefix}{rng.randrange(1, 99):03d}"
@@ -288,7 +355,7 @@ def _assemble(
 
     text = "".join(fragments)
     for span in spans:
-        assert span["label"] in LABELS
+        assert span["label"] in REALISTIC_LABELS
         assert text[span["start"] : span["end"]] == span["text"]
         if span["label"] == "PERSON":
             tokens = span["text"].replace(",", " ").replace(".", " ").split()
@@ -321,9 +388,9 @@ def _no_pii_parts(context: str, variant: int, rng: random.Random) -> tuple[list[
         "email_thread": [
             (
                 f"Subject: Q3 deployment window & build verification\n\n"
-                f"Team,\nBuild verification code {otp} passed staging checks against "
-                f"service trace reference {bad_aadhaar}. Vendor integration with {company} "
-                f"remains scheduled for Friday at 11:30 IST.",
+                f"Team,\nBuild verification code {otp} (commit e3e39c51 on runtime v3.11.4) passed "
+                f"staging checks on 24/11/2025 against service trace reference {bad_aadhaar}. "
+                f"Vendor integration with {company} remains scheduled for Friday at 11:30 IST.",
                 {"lookalike_six_digit_code", "lookalike_invalid_aadhaar", "lookalike_company_name"},
             ),
             (
@@ -425,6 +492,12 @@ def _build_domain_item(
     pan2 = make_pan(rng)
     aadhaar1 = format_aadhaar(make_aadhaar(rng), global_idx)
     addr1, pin1, _ = _make_address_and_pin(rng, global_idx)
+    passport1 = _make_passport(rng)
+    voter1 = _make_voter_id(rng)
+    dl1 = _make_driving_license(rng, global_idx)
+    dob1 = _make_dob(rng, global_idx)
+    acct1 = _make_bank_account(rng, global_idx)
+    ip1 = _make_ip(rng, global_idx)
 
     otp = f"{rng.randrange(100000, 999999)}"
     order_id = str(rng.choice("12345")) + "".join(str(rng.randrange(10)) for _ in range(9))
@@ -487,7 +560,8 @@ def _build_domain_item(
                     "---------- Forwarded message ---------\n",
                     "From: ", e("PERSON", p1["full"]), " <", e("EMAIL", email1), ">\n\n",
                     "Team, please follow up with ", e("PERSON", p2["full"]), " (", e("PHONE", phone2), ") ",
-                    "regarding service ticket code ", otp, " for client ", company, ".\n\n",
+                    "regarding service ticket code ", otp, " (client IP ", e("IP_ADDRESS", ip1),
+                    ") for client ", company, ".\n\n",
                     "Thanks,\n", e("PERSON", p1["full"]),
                 ],
                 {"repeated_person", "lookalike_negative", "lookalike_six_digit_code", "lookalike_company_name"},
@@ -505,7 +579,8 @@ def _build_domain_item(
             (
                 "email_event_speaker_travel",
                 [
-                    "Hi Travel Desk,\n\nProf. ", e("PERSON", p1["full"]), " will be speaking on our panel titled ‘",
+                    "Hi Travel Desk,\n\nProf. ", e("PERSON", p1["full"]), " (Passport ", e("PASSPORT", passport1),
+                    ") will be speaking on our panel titled ‘",
                     quoted_title, "’. Please arrange airport cab pickup from ", e("LOCATION", addr1), ", ",
                     e("PINCODE", pin1), " and send itinerary updates to ", e("EMAIL", email1), " and ", e("PHONE", phone1), ".",
                 ],
@@ -556,7 +631,8 @@ def _build_domain_item(
                 [
                     "From: ", e("PERSON", p1["full"]), "\n",
                     "Subject: NACH mandate & contact update\n\n",
-                    "Please update my registered mobile to ", e("PHONE", phone1), " and email to ",
+                    "Please update my Bank Account No: ", e("BANK_ACCOUNT", acct1),
+                    ", registered mobile ", e("PHONE", phone1), ", and email ",
                     e("EMAIL", email1), " against loan order ref ", order_id, ". My PAN is ", e("PAN", pan1),
                     ".\n\nThanks,\n", e("PERSON", p1["initials"]),
                 ],
@@ -608,16 +684,18 @@ def _build_domain_item(
             (
                 "wa_flatmate_kyc_docs",
                 [
-                    "[10:05] ", e("PERSON", p1["first"]), ": broker mang raha hai PAN aur Aadhaar police verification ke liye\n",
-                    "[10:07] ", e("PERSON", p1["full"]), ": ye le PAN ", e("PAN", pan1), " aur Aadhaar ",
-                    e("AADHAAR", aadhaar1), ", flat address ", e("LOCATION", addr1), ", ", e("PINCODE", pin1), " daal dena",
+                    "[10:05] ", e("PERSON", p1["first"]), ": broker mang raha hai PAN, Aadhaar aur DL police verification ke liye\n",
+                    "[10:07] ", e("PERSON", p1["full"]), ": ye le PAN ", e("PAN", pan1), ", Aadhaar ",
+                    e("AADHAAR", aadhaar1), ", DL ", e("DRIVING_LICENSE", dl1),
+                    ", flat address ", e("LOCATION", addr1), ", ", e("PINCODE", pin1), " daal dena",
                 ],
                 {"messy_chat", "repeated_person"},
             ),
             (
                 "wa_doctor_appointment",
                 [
-                    "pls call ", e("PHONE", phone1), " once free — Dr. ", e("PERSON", p2["full"]),
+                    "pls call ", e("PHONE", phone1), " once free — patient DOB: ", e("DOB", dob1),
+                    ", Dr. ", e("PERSON", p2["full"]),
                     " clinic shifted near ", e("LOCATION", addr1), ". token verification code ", otp, " dikhana padega",
                 ],
                 {"messy_chat", "lookalike_negative", "lookalike_six_digit_code"},
@@ -668,8 +746,9 @@ def _build_domain_item(
             (
                 "wa_freelance_pan_share",
                 [
-                    "[16:40] accounts: hi ", e("PERSON", low_full), ", TDS ke liye PAN bhejna\n",
-                    "[16:42] ", e("PERSON", low_first), ": ", e("PAN", pan1), " — payment ", e("UPI", upi1),
+                    "[16:40] accounts: hi ", e("PERSON", low_full), ", TDS ke liye PAN aur bank account bhejna\n",
+                    "[16:42] ", e("PERSON", low_first), ": PAN ", e("PAN", pan1), ", A/c No: ",
+                    e("BANK_ACCOUNT", acct1), " — ya UPI ", e("UPI", upi1),
                     " pe kr dena, thanks!",
                 ],
                 {"messy_chat", "messy_chat_casing", "repeated_person"},
@@ -712,6 +791,7 @@ def _build_domain_item(
                 "ticket_flight_refund",
                 [
                     "Passenger ", e("PERSON", p1["initials"]), " (surname on roster: ", e("PERSON", p1["last"]),
+                    ", Passport ", e("PASSPORT", passport1),
                     ") requested cancellation on booking order ref ", order_id, ". ",
                     "Send credit note to ", e("EMAIL", email1), " and SMS alert to ", e("PHONE", phone1), ".",
                 ],
@@ -730,6 +810,7 @@ def _build_domain_item(
                 "ticket_sim_replacement",
                 [
                     "Store walk-in KYC: ", e("PERSON", p1["full"]), " presented Aadhaar ", e("AADHAAR", aadhaar1),
+                    " and Voter ID ", e("VOTER_ID", voter1),
                     " for SIM swap on ", e("PHONE", phone1), ". Residential address verified as ",
                     e("LOCATION", addr1), ", ", e("PINCODE", pin1), ".",
                 ],
@@ -757,6 +838,7 @@ def _build_domain_item(
                 "ticket_insurance_nominee",
                 [
                     "Policy endorsement: Policyholder ", e("PERSON", p1["full"]), " (PAN ", e("PAN", pan1),
+                    ", DOB: ", e("DOB", dob1),
                     ") added nominee Mrs. ", e("PERSON", p2["full"]), ", residing at ",
                     e("LOCATION", addr1), ", ", e("PINCODE", pin1), ".",
                 ],
@@ -765,7 +847,8 @@ def _build_domain_item(
             (
                 "ticket_app_crash_report",
                 [
-                    "Bug report from ", e("EMAIL", email1), ": checkout freezes when playing promo clip ‘",
+                    "Bug report from ", e("EMAIL", email1), " (app build 2.14.8, client IP ",
+                    e("IP_ADDRESS", ip1), "): checkout freezes when playing promo clip ‘",
                     quoted_title, "’ on order number ", order_id, ". Please follow up with ",
                     e("PERSON", p1["full"]), " on ", e("PHONE", phone1), ".",
                 ],
@@ -797,7 +880,7 @@ def _build_domain_item(
             (
                 "cv_full_header_block",
                 [
-                    "Name: ", e("PERSON", p1["full"]), "\n",
+                    "Name: ", e("PERSON", p1["full"]), " | DOB: ", e("DOB", dob1), "\n",
                     "Location: ", e("LOCATION", addr1), " - ", e("PINCODE", pin1), "\n",
                     "Mobile: ", e("PHONE", phone1), " | Email: ", e("EMAIL", email1), "\n\n",
                     "Summary: Backend engineer with 4 years of experience at ", company,
@@ -831,7 +914,8 @@ def _build_domain_item(
                     "BACKGROUND VERIFICATION FORM\nCandidate ", e("PERSON", p1["initials"]),
                     " (surname on roster: ", e("PERSON", p1["last"]), ")\nPermanent Address: ",
                     e("LOCATION", addr1), ", ", e("PINCODE", pin1), "\nPAN: ", e("PAN", pan1),
-                    " | Aadhaar: ", e("AADHAAR", aadhaar1),
+                    " | Aadhaar: ", e("AADHAAR", aadhaar1), " | Passport: ", e("PASSPORT", passport1),
+                    " | DL: ", e("DRIVING_LICENSE", dl1),
                 ],
                 {"repeated_person", "initial_or_surname_format"},
             ),
@@ -886,7 +970,8 @@ def _build_domain_item(
                 "cv_stipend_disbursal",
                 [
                     "Intern Stipend Form\nName: ", e("PERSON", p1["full"]), "\n",
-                    "Phone: ", e("PHONE", phone1), " | UPI ID: ", e("UPI", upi1), "\n",
+                    "Phone: ", e("PHONE", phone1), " | Bank Account Number: ", e("BANK_ACCOUNT", acct1),
+                    " | UPI ID: ", e("UPI", upi1), "\n",
                     "College batch verification code ", otp, " verified.",
                 ],
                 {"lookalike_negative", "lookalike_six_digit_code"},
@@ -940,8 +1025,10 @@ def _build_domain_item(
                 "fin_ckyc_verification",
                 [
                     "CKYC Verification Record (batch reference ", bad_aadhaar, ")\n",
-                    "Name: ", e("PERSON", p1["full"]), "\nAadhaar: ", e("AADHAAR", aadhaar1),
-                    " | PAN: ", e("PAN", pan1), "\nMobile: ", e("PHONE", phone1),
+                    "Name: ", e("PERSON", p1["full"]), " | Date of Birth: ", e("DOB", dob1),
+                    "\nAadhaar: ", e("AADHAAR", aadhaar1),
+                    " | PAN: ", e("PAN", pan1), " | Voter ID: ", e("VOTER_ID", voter1),
+                    "\nMobile: ", e("PHONE", phone1),
                     " | Email: ", e("EMAIL", email1),
                 ],
                 {"lookalike_negative", "lookalike_invalid_aadhaar"},
@@ -950,7 +1037,8 @@ def _build_domain_item(
                 "fin_vendor_payout_voucher",
                 [
                     "Payout approval (verification code ", otp, ") for consultant ",
-                    "Dr. ", e("PERSON", p1["full"]), ": transfer ₹45,000 to UPI ", e("UPI", upi1),
+                    "Dr. ", e("PERSON", p1["full"]), ": transfer ₹45,000 to Account No: ",
+                    e("BANK_ACCOUNT", acct1), " or UPI ", e("UPI", upi1),
                     " after TDS under PAN ", e("PAN", pan1), ".",
                 ],
                 {"lookalike_negative", "lookalike_six_digit_code"},
@@ -960,7 +1048,8 @@ def _build_domain_item(
                 [
                     "Consignee: ", company, " | Attention: ",
                     "Mr. ", e("PERSON", p1["full"]), "\nShip to ", e("PERSON", p1["full"]), " at ",
-                    e("LOCATION", addr1), ", ", e("PINCODE", pin1), "\nDriver contact: ",
+                    e("LOCATION", addr1), ", ", e("PINCODE", pin1), "\nDriver DL: ",
+                    e("DRIVING_LICENSE", dl1), " | Driver contact: ",
                     e("PHONE", phone1), " | e-Waybill reference ", bad_aadhaar,
                 ],
                 {"repeated_person", "lookalike_negative", "lookalike_company_name", "lookalike_invalid_aadhaar"},
@@ -987,7 +1076,8 @@ def _build_domain_item(
             (
                 "fin_loan_coapplicant_note",
                 [
-                    "Co-applicant screening: Sri ", e("PERSON", p1["full"]), " (Phone ", e("PHONE", phone1),
+                    "Co-applicant screening (portal IP ", e("IP_ADDRESS", ip1), "): Sri ",
+                    e("PERSON", p1["full"]), " (Phone ", e("PHONE", phone1),
                     ", PAN ", e("PAN", pan1), ") and Mrs. ", e("PERSON", p2["full"]),
                     " residing at ", e("LOCATION", addr1), ", ", e("PINCODE", pin1), ".",
                 ],
@@ -1067,8 +1157,9 @@ def _build_domain_item(
             "notice_scholarship_kyc",
             [
                 "Scholarship verification desk: Name: ", e("PERSON", p1["full"]),
-                " must bring original Aadhaar (", e("AADHAAR", aadhaar1), ") and PAN (",
-                e("PAN", pan1), ") to Admin Block. Application reference ", bad_aadhaar, ".",
+                " (DOB: ", e("DOB", dob1), ") must bring original Aadhaar (", e("AADHAAR", aadhaar1),
+                "), PAN (", e("PAN", pan1), "), and Bank Account No: ", e("BANK_ACCOUNT", acct1),
+                " to Admin Block. Application reference ", bad_aadhaar, ".",
             ],
             {"lookalike_negative", "lookalike_invalid_aadhaar"},
         ),
@@ -1097,7 +1188,8 @@ def _build_domain_item(
             [
                 "Transport notice: Pickup point at ", e("LOCATION", addr1), ", ", e("PINCODE", pin1),
                 " will be coordinated by Smt. ", e("PERSON", p1["full"]), " (nickname ",
-                e("PERSON", p1["nickname"]), "). Emergency helpline: ", e("PHONE", phone1), ".",
+                e("PERSON", p1["nickname"]), ", DL ", e("DRIVING_LICENSE", dl1),
+                "). Emergency helpline: ", e("PHONE", phone1), ".",
             ],
             {"repeated_person"},
         ),
@@ -1106,7 +1198,8 @@ def _build_domain_item(
             [
                 "From: ", e("PERSON", p2["full"]), "\n",
                 "Seat discrepancy reported for ", e("PERSON", p1["initials"]),
-                " (surname on roster: ", e("PERSON", p1["last"]), "). Send hall ticket scan to ",
+                " (surname on roster: ", e("PERSON", p1["last"]), ", Voter ID ", e("VOTER_ID", voter1),
+                ", Passport ", e("PASSPORT", passport1), "). Send hall ticket scan to ",
                 e("EMAIL", email1), " quoting verification code ", otp, ".",
             ],
             {"repeated_person", "initial_or_surname_format", "lookalike_negative", "lookalike_six_digit_code"},
@@ -1141,7 +1234,7 @@ def _build_domain_item(
         (
             "notice_library_clearance",
             [
-                "No-dues clearance for Name: ", e("PERSON", p1["full"]),
+                "No-dues clearance (kiosk IP ", e("IP_ADDRESS", ip1), ") for Name: ", e("PERSON", p1["full"]),
                 " | Mobile: ", e("PHONE", phone1), " | Email: ", e("EMAIL", email1),
                 " | Ledger reference ", bad_aadhaar, " cleared.",
             ],

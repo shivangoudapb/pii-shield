@@ -8,6 +8,14 @@ from redactor import redact, restore
 DEV_PATH = Path(__file__).parents[1] / "eval" / "dev.jsonl"
 REALISTIC_PATH = Path(__file__).parents[1] / "eval" / "realistic.jsonl"
 STRUCTURED = {"PHONE", "EMAIL", "AADHAAR", "PAN", "UPI", "PINCODE"}
+REALISTIC_STRUCTURED = STRUCTURED | {
+    "DOB",
+    "PASSPORT",
+    "VOTER_ID",
+    "DRIVING_LICENSE",
+    "BANK_ACCOUNT",
+    "IP_ADDRESS",
+}
 
 
 def load_dev():
@@ -78,7 +86,7 @@ def test_realistic_dataset_integrity_structured_exactness_and_round_trip():
     assert sum(not item["spans"] for item in items) == 54
 
     all_labels = {span["label"] for item in items for span in item["spans"]}
-    assert all_labels == {"PERSON", "LOCATION", "PHONE", "EMAIL", "AADHAAR", "PAN", "UPI", "PINCODE"}
+    assert all_labels == {"PERSON", "LOCATION"} | REALISTIC_STRUCTURED
 
     for item in items:
         text = item["text"]
@@ -89,7 +97,7 @@ def test_realistic_dataset_integrity_structured_exactness_and_round_trip():
         expected_structured = {
             (span["start"], span["end"], span["label"])
             for span in item["spans"]
-            if span["label"] in STRUCTURED
+            if span["label"] in REALISTIC_STRUCTURED
         }
         actual_structured = {
             (span.start, span.end, span.label)

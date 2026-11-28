@@ -125,20 +125,30 @@ def detect_structured_pii(text: str) -> list[Span]:
                     score=1.0,
                 ))
 
-    # Detect Aadhaar and context-gated Bank Accounts before phones so overlapping
-    # numeric substrings are not misclassified as mobile numbers.
-    add_matches(_AADHAAR_CANDIDATE, "AADHAAR", is_valid_aadhaar)
+    # Detect context-gated Bank Accounts and Aadhaar before phones so overlapping
+    # numeric substrings are not misclassified.
     for match in _BANK_ACCOUNT_CONTEXT_CANDIDATE.finditer(text):
         acct_start, acct_end = match.span("acct")
         acct_val = text[acct_start:acct_end]
-        if is_valid_bank_account(acct_val) and not any(
-            acct_start < span.end and span.start < acct_end for span in found
-        ):
+        if is_valid_bank_account(acct_val):
             found.append(Span(
                 start=acct_start,
                 end=acct_end,
                 label="BANK_ACCOUNT",
                 text=acct_val,
+                source="regex",
+                score=1.0,
+            ))
+    for match in _AADHAAR_CANDIDATE.finditer(text):
+        if any(match.start() < span.end and span.start < match.end() for span in found):
+            continue
+        value = match.group(0)
+        if is_valid_aadhaar(value):
+            found.append(Span(
+                start=match.start(),
+                end=match.end(),
+                label="AADHAAR",
+                text=value,
                 source="regex",
                 score=1.0,
             ))

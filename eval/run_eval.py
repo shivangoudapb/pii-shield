@@ -27,7 +27,20 @@ from redactor import _redact_spans, restore
 
 ROOT = Path(__file__).resolve().parent
 ALL_LABELS: tuple[str, ...] = (
-    "PERSON", "LOCATION", "PHONE", "EMAIL", "AADHAAR", "PAN", "UPI", "PINCODE"
+    "PERSON",
+    "LOCATION",
+    "PHONE",
+    "EMAIL",
+    "AADHAAR",
+    "PAN",
+    "UPI",
+    "PINCODE",
+    "DOB",
+    "PASSPORT",
+    "VOTER_ID",
+    "DRIVING_LICENSE",
+    "BANK_ACCOUNT",
+    "IP_ADDRESS",
 )
 THRESHOLDS = (0.2, 0.3, 0.4, 0.5)
 LABEL_SETS: dict[str, tuple[str, ...]] = {
