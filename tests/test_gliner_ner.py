@@ -288,3 +288,14 @@ def test_ner_drops_quoted_non_address_location_titles(text, quoted_part, monkeyp
     install_mock_model(monkeypatch, model)
 
     assert GlinerNer().detect(text) == []
+
+
+@pytest.mark.parametrize(
+    "role_phrase",
+    ["Operations Desk", "Finance Team", "Hiring Committee", "Support Desk"],
+)
+def test_ner_drops_department_and_desk_phrases_tagged_as_person(role_phrase, monkeypatch):
+    model = MockModel(lambda chunk: [entity(chunk, label="person", start=0, end=len(chunk))])
+    install_mock_model(monkeypatch, model)
+
+    assert GlinerNer().detect(role_phrase) == []

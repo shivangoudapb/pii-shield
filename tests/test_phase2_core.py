@@ -268,3 +268,50 @@ def test_detect_merges_adjacent_locality_and_city_ner_spans_but_not_city_lists()
         ("LOCATION", "Mumbai"),
         ("LOCATION", "Pune"),
     ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Thanks,\nOperations Desk",
+        "Regards,\nFinance Team",
+        "Dear Hiring Committee,\nPlease review.",
+        "From: Customer Support\nTicket closed.",
+    ],
+)
+def test_rules_do_not_flag_role_or_department_signoffs_as_person(text):
+    assert [s for s in detect_rule_pii(text) if s.label == "PERSON"] == []
+
+
+def test_rules_handle_apostrophe_names_email_headers_and_reversed_from_field():
+    text = (
+        "From: Pathan, Jyoti\n"
+        "From: Ruth D'Costa <ruth@example.com>\n"
+        "Prof. K. M. Rajendran reviewed the paper.\n"
+        "Placement record: Name: A. Rao, Address: Plot 42, Indiranagar, Bengaluru"
+    )
+    spans = detect_rule_pii(text)
+    people = [s.text for s in spans if s.label == "PERSON"]
+    locations = [s.text for s in spans if s.label == "LOCATION"]
+    assert people == ["Pathan, Jyoti", "Ruth D'Costa", "K. M. Rajendran", "A. Rao"]
+    assert locations == ["Plot 42, Indiranagar, Bengaluru"]
+
+
+@pytest.mark.parametrize(
+    "company_snippet",
+    [
+        "Vendor partner Sundaram Finance approved the invoice.",
+        "Previously at Narayana Health and Bajaj Electricals.",
+        " Ledger matched Kirloskar Brothers and Lakshmi Machine Works.",
+        "Supplier Ravi Kumar & Sons shipped via Mahindra Logistics.",
+    ],
+)
+def test_detect_suppresses_person_false_alarms_inside_company_names(company_snippet):
+    # Simulate NER tagging the leading personal/deity root inside company names.
+    words = ["Sundaram", "Narayana", "Bajaj", "Kirloskar", "Lakshmi", "Ravi Kumar", "Mahindra"]
+    fake_spans = []
+    for word in words:
+        if word in company_snippet:
+            idx = company_snippet.index(word)
+            fake_spans.append(Span(idx, idx + len(word), "PERSON", word, "ner", 0.91))
+    assert detect(company_snippet, FakeNer({company_snippet: fake_spans})) == []

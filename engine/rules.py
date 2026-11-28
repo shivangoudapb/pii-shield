@@ -2,40 +2,55 @@
 
 import re
 
-from engine.constants import INDIAN_CITIES
+from engine.constants import INDIAN_CITIES, NON_PERSON_ROLE_WORDS
 from engine.spans import Span
 
+_NAME_WORD = r"[A-Z][a-z]+(?:'[A-Z][a-z]+)?"
+_INITIAL = r"(?:[A-Z]\.(?![A-Za-z])|[A-Z](?![A-Za-z.]))"
+_NAME_PHRASE = (
+    r"(?:" + _INITIAL + r"[ \t]+)*"
+    + _NAME_WORD
+    + r"(?:[ \t]+(?:" + _NAME_WORD + r"|" + _INITIAL + r"))*"
+)
+_FIELD_TOKEN = r"(?:[A-Za-z]\.(?![A-Za-z])|[A-Za-z][A-Za-z']*)"
+_FIELD_PHRASE = _FIELD_TOKEN + r"(?:[ \t]+" + _FIELD_TOKEN + r")*?"
+
 _TITLE = re.compile(
-    r"(?i:\b(?:Mr|Mrs|Ms|Dr|Shri|Smt|Sri)\.?)"
-    r"[ \t]+(?P<name>[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*)"
+    r"(?i:\b(?:Mr|Mrs|Ms|Dr|Shri|Smt|Sri|Prof)\.?)"
+    r"[ \t]+(?P<name>" + _NAME_PHRASE + r")"
 )
 _NAME_FIELD = re.compile(
-    r"(?im)^[ \t]*(?:Name|From)[ \t]*:[ \t]*"
-    r"(?P<name>[A-Za-z]+(?:[ \t]+[A-Za-z]+)*?)"
-    r"(?=[ \t]*(?:$|[,;|.]|\b(?:PAN|Phone|Email|Aadhaar|UPI|Address)[ \t]*:))"
+    r"(?im)(?:^[ \t]*(?:(?:Customer|Candidate|Applicant|Employee|Author|Donor)[ \t]+)?(?:Name|From)|"
+    r"[,;|—–:-][ \t]*(?:(?:Author|Donor|Customer)[ \t]+)?Name)[ \t]*:[ \t]*"
+    r"(?P<name>"
+    r"[A-Za-z][A-Za-z']*,[ \t]+" + _FIELD_PHRASE + r"(?=[ \t]*(?:$|[;|<(\r\n]))"
+    r"|"
+    + _FIELD_PHRASE
+    + r"(?=[ \t]*(?:$|[,;|.<(\r\n]|\b(?:PAN|Phone|Email|Aadhaar|UPI|Address|Mobile|Contact)[ \t]*:))"
+    r")"
 )
 _SIGNOFF = re.compile(
     r"(?i:\b(?:Regards|Thanks)[ \t]*,)"
     r"[ \t]*(?:\r?\n[ \t]*)?"
-    r"(?P<name>[A-Z][a-z]+(?:,[ \t]+[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*|(?:[ \t]+[A-Z][a-z]+)*))"
+    r"(?P<name>" + _NAME_WORD + r",[ \t]+" + _NAME_PHRASE + r"|" + _NAME_PHRASE + r")"
 )
 _FOLLOW_UP = re.compile(
-    r"(?i:follow\s+up\s+with)\s+(?P<name>[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*)"
+    r"(?i:follow\s+up\s+with)\s+(?P<name>" + _NAME_PHRASE + r")"
 )
 _SHIP_TO = re.compile(
-    r"(?i:ship\s+to)\s+(?P<name>[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*?)(?=[ \t]+at\b)"
+    r"(?i:ship\s+to)\s+(?P<name>" + _NAME_PHRASE + r"?)(?=[ \t]+at\b)"
 )
 _NICKNAME = re.compile(
     r"\((?i:nickname)\s+(?P<name>[A-Za-z][A-Za-z]+)\)"
 )
 _SURNAME_ROSTER = re.compile(
-    r"\((?i:surname\s+on\s+roster)\s*:\s*(?P<name>[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*)\)"
+    r"\((?i:surname\s+on\s+roster)\s*:\s*(?P<name>" + _NAME_PHRASE + r")\)"
 )
 _CIRCULAR = re.compile(
-    r"(?i:\bcircular)\s*[—–-]\s*(?P<name>[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*)"
+    r"(?i:\bcircular)\s*[—–-]\s*(?P<name>" + _NAME_PHRASE + r")"
 )
 _UPDATE_FOR = re.compile(
-    r"(?i:\bupdate\s+for)\s+(?P<name>[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*?)(?=[ \t]*[—–-])"
+    r"(?i:\bupdate\s+for)\s+(?P<name>" + _NAME_PHRASE + r"?)(?=[ \t]*[—–-])"
 )
 
 _CITY_ALTERNATION = "|".join(
@@ -55,6 +70,8 @@ _ADDRESS_START = (
     + _ROAD_OR_UNIT
     + r"(?:[ \t]+[A-Za-z0-9-]+)?"
     r"|"
+    r"(?:Flat|Plot|House|Door|Shop|Villa)[ \t]*(?:No\.?[ \t]*)?(?:#[ \t]*)?\d+[A-Za-z0-9/-]*"
+    r"|"
     r"\d+[A-Za-z]?(?:[/-]\d+[A-Za-z]?)?(?:st|nd|rd|th)?[ \t]+"
     r"(?:[A-Z0-9][A-Za-z0-9.'/-]*[ \t]+){0,4}?"
     + _ROAD_OR_UNIT
@@ -72,6 +89,11 @@ _STRUCTURED_ADDRESS = re.compile(
 )
 
 
+def _has_non_person_role_word(value: str) -> bool:
+    tokens = re.findall(r"[A-Za-z]+", value)
+    return any(tok.casefold() in NON_PERSON_ROLE_WORDS for tok in tokens)
+
+
 def detect_rule_pii(text: str) -> list[Span]:
     """Return PERSON and LOCATION spans from high-precision text patterns."""
     if not isinstance(text, str) or not text:
@@ -84,6 +106,8 @@ def detect_rule_pii(text: str) -> list[Span]:
         for match in pattern.finditer(text):
             start, end = match.span("name")
             value = text[start:end]
+            if _has_non_person_role_word(value):
+                continue
             spans[(start, end, "PERSON")] = Span(
                 start=start,
                 end=end,

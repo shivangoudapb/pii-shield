@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from threading import Lock
 from typing import Any, Protocol
 
+from engine.constants import NON_PERSON_ROLE_WORDS
 from engine.spans import Span, SpanLabel
 
 DEFAULT_MODEL_NAME = "urchade/gliner_multi_pii-v1"
@@ -185,6 +186,10 @@ class GlinerNer:
         clean_text = chunk[left:right]
         if clean_text.casefold() in _NER_WORD_BLOCKLIST:
             return None
+        if label == "PERSON":
+            tokens = re.findall(r"[A-Za-z]+", clean_text)
+            if any(tok.casefold() in NON_PERSON_ROLE_WORDS for tok in tokens):
+                return None
         if label == "LOCATION":
             quoted_outside = (
                 left > 0
