@@ -17,27 +17,119 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from engine.detect import detect
 from engine.ner import DEFAULT_MODEL_NAME, GlinerNer, NerDetector
+from engine.spans import SpanLabel, SpanSource
 from redactor import _redact_spans, restore as restore_text
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "eval" / "config.json"
 WEB_PATH = ROOT / "web"
 MAX_TEXT_CHARS = 20_000
+API_VERSION = "0.1.0"
+OPENAPI_TAGS = [
+    {
+        "name": "Redaction",
+        "description": "In-memory Indian PII detection, placeholder redaction, and reply restoration.",
+    },
+    {
+        "name": "Operations",
+        "description": "Service health and privacy-safe aggregate runtime metrics.",
+    },
+]
 
 
 class RedactRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    text: str
+    """Input payload for PII detection and placeholder redaction."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [{"text": "Name: Ananya Rao | Phone: +91 98450 12345"}]
+        },
+    )
+    text: str = Field(
+        description="Raw UTF-8 text to scan in memory (maximum 20,000 characters). Never logged or persisted.",
+    )
+
+
+class DetectedSpan(BaseModel):
+    """Character-offset PII span detected by regex, rules, or NER."""
+
+    start: int = Field(ge=0, description="Start character offset (inclusive).", examples=[6])
+    end: int = Field(gt=0, description="End character offset (exclusive).", examples=[16])
+    label: SpanLabel = Field(description="PII category label.", examples=["PERSON"])
+    text: str = Field(description="Exact substring matched in the input text.", examples=["Ananya Rao"])
+    source: SpanSource = Field(description="Detection layer that produced the winning span.", examples=["rules"])
+    score: float = Field(ge=0.0, le=1.0, description="Confidence score in [0.0, 1.0].", examples=[1.0])
+
+
+class RedactResponse(BaseModel):
+    """Redacted text, detected spans, and client-held placeholder mapping."""
+
+    redacted: str = Field(
+        description="Input text with detected PII replaced by [LABEL_N] placeholders.",
+        examples=["Name: [PERSON_1] | Phone: [PHONE_1]"],
+    )
+    spans: list[DetectedSpan] = Field(description="Non-overlapping detected spans ordered by offset.")
+    mapping: dict[str, str] = Field(
+        description="Placeholder-to-original mapping returned to the client and never stored server-side.",
+        examples=[{"[PERSON_1]": "Ananya Rao", "[PHONE_1]": "+91 98450 12345"}],
+    )
 
 
 class RestoreRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    text: str
-    mapping: dict[str, str]
+    """Input payload for restoring placeholders inside an AI reply."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "text": "Hello [PERSON_1], we will call you on [PHONE_1].",
+                    "mapping": {"[PERSON_1]": "Ananya Rao", "[PHONE_1]": "+91 98450 12345"},
+                }
+            ]
+        },
+    )
+    text: str = Field(description="AI reply containing [LABEL_N] placeholders (maximum 20,000 characters).")
+    mapping: dict[str, str] = Field(description="Placeholder-to-value mapping obtained from /redact.")
+
+
+class RestoreResponse(BaseModel):
+    """Reply text with known placeholders replaced by their original values."""
+
+    restored: str = Field(
+        description="Restored text with known placeholders substituted back.",
+        examples=["Hello Ananya Rao, we will call you on +91 98450 12345."],
+    )
+
+
+class HealthResponse(BaseModel):
+    """Service readiness status."""
+
+    status: str = Field(description="Service status string.", examples=["ok"])
+    model_loaded: bool = Field(description="Whether the startup GLiNER model warm-up completed.", examples=[True])
+
+
+class MetricsResponse(BaseModel):
+    """Anonymous in-memory aggregate usage counters (never contains text or PII)."""
+
+    redact_requests: int = Field(ge=0, description="Total successful /redact calls since startup.")
+    restore_requests: int = Field(ge=0, description="Total successful /restore calls since startup.")
+    spans_detected_total: int = Field(ge=0, description="Total PII spans detected across requests.")
+    spans_by_label: dict[str, int] = Field(description="Detected span counts grouped by PII label.")
+    errors_by_status: dict[str, int] = Field(description="HTTP error counts on /redact and /restore by status code.")
+    redact_latency_ms_avg: float = Field(ge=0.0, description="Mean /redact processing latency in milliseconds.")
+    redact_latency_ms_max: float = Field(ge=0.0, description="Peak /redact processing latency in milliseconds.")
+
+
+class ErrorResponse(BaseModel):
+    """Privacy-safe error detail without echoing request bodies."""
+
+    detail: str = Field(description="Human-readable error explanation.", examples=["Invalid request body."])
 
 
 def _load_frozen_config() -> dict[str, Any]:
@@ -181,7 +273,17 @@ def create_app(
             app.state.config = None
         yield
 
-    app = FastAPI(title="PII Shield", lifespan=lifespan)
+    app = FastAPI(
+        title="PII Shield",
+        version=API_VERSION,
+        description=(
+            "In-memory Indian PII detection, reversible placeholder redaction, "
+            "and AI reply restoration. Raw text and placeholder mappings are never "
+            "logged or persisted server-side."
+        ),
+        openapi_tags=OPENAPI_TAGS,
+        lifespan=lifespan,
+    )
 
     @app.middleware("http")
     async def track_api_errors(request: Request, call_next):
@@ -195,15 +297,38 @@ def create_app(
         # Pydantic's default 422 response can echo the submitted input value.
         return JSONResponse(status_code=422, content={"detail": "Invalid request body."})
 
-    @app.get("/health")
+    @app.get(
+        "/health",
+        response_model=HealthResponse,
+        tags=["Operations"],
+        summary="Check service and model readiness",
+    )
     async def health() -> dict[str, bool | str]:
         return {"status": "ok", "model_loaded": bool(app.state.model_loaded)}
 
-    @app.get("/metrics")
+    @app.get(
+        "/metrics",
+        response_model=MetricsResponse,
+        tags=["Operations"],
+        summary="Read anonymous in-memory aggregate metrics",
+    )
     async def get_metrics() -> dict[str, Any]:
         return metrics.snapshot()
 
-    @app.post("/redact", dependencies=[Depends(enforce_rate_limit)])
+    error_responses: dict[int | str, dict[str, Any]] = {
+        413: {"model": ErrorResponse, "description": "Input text exceeds the 20,000-character limit."},
+        422: {"model": ErrorResponse, "description": "Invalid request payload."},
+        429: {"model": ErrorResponse, "description": "Per-client rate limit exceeded."},
+    }
+
+    @app.post(
+        "/redact",
+        response_model=RedactResponse,
+        responses=error_responses,
+        tags=["Redaction"],
+        summary="Detect Indian PII and replace with reversible placeholders",
+        dependencies=[Depends(enforce_rate_limit)],
+    )
     async def redact(request: RedactRequest) -> dict[str, Any]:
         if len(request.text) > MAX_TEXT_CHARS:
             raise HTTPException(status_code=413, detail="Text exceeds the 20,000 character limit.")
@@ -223,7 +348,14 @@ def create_app(
             "mapping": mapping,
         }
 
-    @app.post("/restore", dependencies=[Depends(enforce_rate_limit)])
+    @app.post(
+        "/restore",
+        response_model=RestoreResponse,
+        responses=error_responses,
+        tags=["Redaction"],
+        summary="Restore placeholders in an AI reply using client mapping",
+        dependencies=[Depends(enforce_rate_limit)],
+    )
     async def restore(request: RestoreRequest) -> dict[str, str]:
         if len(request.text) > MAX_TEXT_CHARS:
             raise HTTPException(status_code=413, detail="Text exceeds the 20,000 character limit.")

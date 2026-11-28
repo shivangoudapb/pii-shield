@@ -162,3 +162,35 @@ def test_metrics_tracks_aggregate_counts_without_leaking_pii():
         serialised = json.dumps(stats)
         assert "Ananya Rao" not in serialised
         assert "9845012345" not in serialised
+
+
+def test_openapi_schema_documents_models_examples_and_error_codes():
+    app = create_app(ner_detector=FakeNer({}))
+    with TestClient(app) as client:
+        docs_page = client.get("/docs")
+        schema_res = client.get("/openapi.json")
+    assert docs_page.status_code == 200
+    assert schema_res.status_code == 200
+    schema = schema_res.json()
+
+    assert schema["info"]["title"] == "PII Shield"
+    assert schema["info"]["version"] == "0.1.0"
+    assert "Indian" in schema["info"]["description"]
+
+    components = schema["components"]["schemas"]
+    for model_name in (
+        "RedactRequest",
+        "RedactResponse",
+        "DetectedSpan",
+        "RestoreRequest",
+        "RestoreResponse",
+        "HealthResponse",
+        "MetricsResponse",
+        "ErrorResponse",
+    ):
+        assert model_name in components, f"Missing schema component: {model_name}"
+
+    redact_post = schema["paths"]["/redact"]["post"]
+    assert "413" in redact_post["responses"]
+    assert "429" in redact_post["responses"]
+    assert redact_post["tags"] == ["Redaction"]

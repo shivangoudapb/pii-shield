@@ -138,10 +138,10 @@ You asked if making the API available externally makes sense. My take:
 
 **Verdict:** Don't prioritize a public API now. If you build the Chrome extension, it'll call your API anyway. If someone else wants to use it, they can self-host the Docker image. Consider a public API later if there's demand, with rate limiting and an API key.
 
-### D2. OpenAPI / Swagger docs
+### D2. [Done] OpenAPI / Swagger docs
 Your FastAPI app already auto-generates these at `/docs`. Make sure it's clean and useful — add descriptions, examples, and response schemas to the Pydantic models. This helps if you ever open the API, and it's good practice regardless.
 
-### D3. npm / pip package
+### D3. [Done] npm / pip package
 Package the Python engine as a pip-installable library (`pip install pii-shield`) so developers can use it programmatically without running the server. Low effort, nice for portfolio.
 
 ---
@@ -215,8 +215,8 @@ If you build C1, the extension needs its own test suite: content script injectio
 | C3 | System proxy | Very High | Medium | Not recommended first |
 | C4 | Keyboard shortcut app | Medium | Medium | None |
 | D1 | Public API | Low-Med | Low for now | A1 |
-| D2 | OpenAPI docs polish | Low | Low | None |
-| D3 | pip package | Low | Low-Med | None |
+| D2 | OpenAPI docs polish `[Done]` | Low | Low | None |
+| D3 | pip package `[Done]` | Low | Low-Med | None |
 | E1 | Async NER `[Done]` | Low | Medium (concurrency) | None |
 | E2 | Rate limiting `[Done]` | Low | Medium (abuse prevention) | None |
 | E3 | Frontend char limit `[Done]` | Low | Low | None |
